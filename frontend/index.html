@@ -1945,39 +1945,56 @@ function _showApprovalCard(approvalId='',eventId=''){
     </div>`;
   const submitApproval=async(action)=>{
     if(!approvalId){
-      return {status:'local',result:'未收到审批工单编号，仅更新前端状态'};
+      return {status:'error',result:'未收到审批工单编号，无法提交后端审批'};
     }
     const resp=await fetch(`${API_URL}/approval/${action}`,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({approval_id:approvalId,event_id:eventId})
+      body:JSON.stringify({approval_id:approvalId,event_id:eventId,operator:'frontend'})
     });
-    return resp.json();
+    const result=await resp.json().catch(()=>({status:'error',result:`HTTP ${resp.status}`}));
+    if(!resp.ok||result.status!=='ok')throw new Error(result.message||result.result||`HTTP ${resp.status}`);
+    return result;
   };
   card.querySelectorAll('button')[0].onclick=async()=>{
-    const result=await submitApproval('reject');
-    updateTrustChain({event_id:eventId,approval_id:approvalId,approval_status:'rejected',result:result.result},'审批回传');
-    updateEventLifecycle({event_id:eventId,approval_id:approvalId,approval_status:'rejected',lifecycle_status:'rejected'});
-    card.innerHTML=`<div style="color:var(--red);border-left:3px solid var(--red);padding:8px 8px 8px 10px;font-weight:700;background:rgba(255,92,101,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
-      [REJECTED] ${escapeHtml(result.result||'处置指令已驳回')}
-    </div>`;
-    setTimeout(()=>{card.remove();setFlowState('edge')},2600);
+    card.querySelectorAll('button').forEach(btn=>btn.disabled=true);
+    try{
+      const result=await submitApproval('reject');
+      updateTrustChain(result,'审批回传');
+      updateEventLifecycle(result);
+      card.innerHTML=`<div style="color:var(--red);border-left:3px solid var(--red);padding:8px 8px 8px 10px;font-weight:700;background:rgba(255,92,101,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
+        [REJECTED] ${escapeHtml(result.result||'处置指令已驳回')}
+      </div>`;
+      setTimeout(()=>{card.remove();setFlowState('edge')},2600);
+      refreshHealth();
+    }catch(e){
+      card.querySelectorAll('button').forEach(btn=>btn.disabled=false);
+      card.querySelector('.d').textContent=`审批提交失败：${e.message}`;
+    }
   };
   card.querySelectorAll('button')[1].onclick=async()=>{
+    card.querySelectorAll('button').forEach(btn=>btn.disabled=true);
     card.innerHTML=`<div style="font-family:'Consolas','DIN Alternate',monospace;font-size:11px;color:var(--cyan);line-height:1.6;letter-spacing:.4px">
       &gt; INIT SAFETY OVERRIDE... [OK]<br>
       &gt; SUBMIT HUMAN_APPROVAL TO BACKEND...<br>
       <span style="color:var(--amber);animation:cursor-blink .5s infinite">WAITING EDGE ACK...</span>
     </div>`;
-    const result=await submitApproval('approve');
-    updateTrustChain({event_id:eventId,approval_id:approvalId,approval_status:'approved',result:result.result},'审批回传');
-    updateEventLifecycle({event_id:eventId,approval_id:approvalId,approval_status:'approved',lifecycle_status:'approved'});
-    setTimeout(()=>{
+    try{
+      const result=await submitApproval('approve');
+      updateTrustChain(result,'审批回传');
+      updateEventLifecycle(result);
       card.innerHTML=`<div style="color:var(--green);border-left:3px solid var(--green);padding:8px 8px 8px 10px;font-weight:700;background:rgba(120,208,141,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
         [ACK] ${escapeHtml(result.result||'审批通过，处置指令已确认')}
       </div>`;
       setTimeout(()=>{card.remove();setFlowState('edge')},3000);
-    },500);
+      refreshHealth();
+    }catch(e){
+      card.innerHTML=`<div style="color:var(--red);border-left:3px solid var(--red);padding:8px 8px 8px 10px;font-weight:700;background:rgba(255,92,101,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
+        [FAILED] ${escapeHtml(e.message)}
+      </div>`;
+      if(approvalKey)shownApprovalIds.delete(approvalKey);
+      setTimeout(()=>_showApprovalCard(approvalId,eventId),1800);
+    }
   };
   listEl.prepend(card);
   listEl.scrollTop=0;

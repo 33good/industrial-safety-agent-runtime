@@ -373,12 +373,16 @@ class AlarmHandler(BaseHTTPRequestHandler):
                     self.wfile.write(f.read())
             else:
                 self.send_response(404); self.end_headers()
-        elif self.path == "/api/approval":
-            self._handle_approval("approve" if "approve" in self.path else "reject")
+        elif self.path == "/approval/pending":
+            pending = self.human_loop_tool.get_pending() if self.human_loop_tool else []
+            self._send_json({"pending": pending})
         else:
             self.send_response(404); self.end_headers()
 
     def do_POST(self):
+        if self.path in ("/approval/approve", "/approval/reject"):
+            self._handle_approval(self.path.rsplit("/", 1)[-1])
+            return
         if self.path == "/api/approval":
             self._handle_approval("approve" if "approve" in (self.headers.get("X-Approval-Action") or "") else "reject")
             return
@@ -499,14 +503,51 @@ class AlarmHandler(BaseHTTPRequestHandler):
 
     def _handle_approval(self, action):
         try:
+            if action not in {"approve", "reject"}:
+                self._send_json({"status": "error", "message": f"unsupported approval action: {action}"}, code=400)
+                return
             content_length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(content_length) if content_length else b"{}"
             data = json.loads(raw.decode("utf-8") or "{}")
             pending_id = data.get("approval_id") or data.get("pending_id") or data.get("id") or ""
             if not pending_id or not self.human_loop_tool:
                 self._send_json({"status": "error", "message": "approval_id missing"}, code=400); return
+            order = self.human_loop_tool._load_order(pending_id)
+            if not order:
+                self._send_json({"status": "error", "message": f"approval order not found: {pending_id}"}, code=404)
+                return
+            current_status = order.get("status", "pending")
+            if current_status != "pending":
+                self._send_json({"status": "error", "message": f"approval order already {current_status}: {pending_id}"}, code=409)
+                return
             result = self.human_loop_tool.handle(pending_id, action)
-            self._send_json({"status": "ok", "result": result})
+            status = "approved" if action == "approve" else "rejected"
+            order = self.human_loop_tool._load_order(pending_id) or order
+            event_id = data.get("event_id") or order.get("event_id", "")
+            operator = data.get("operator") or "frontend"
+            comment = data.get("comment") or ""
+            detail = f"{operator} {result}" + (f"；备注：{comment}" if comment else "")
+            timeline_step = _timeline(status, "人工审批", detail)
+            db_persisted = False
+            if self.database_tool:
+                db_persisted = self.database_tool.update_approval_status(event_id, pending_id, status, timeline_step)
+            msg = {
+                "type": "approval_result",
+                "event_id": event_id,
+                "approval_id": pending_id,
+                "approval_status": status,
+                "lifecycle_status": status,
+                "result": result,
+                "operator": operator,
+                "comment": comment,
+                "db_persisted": db_persisted,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "timeline": [timeline_step],
+            }
+            print(f"[Approval] {pending_id} -> {status} event={event_id or '-'} db={db_persisted}")
+            _remember_event(msg)
+            broadcast_event(msg)
+            self._send_json({"status": "ok", **msg})
         except Exception as e:
             self._send_json({"status": "error", "message": str(e)}, code=500)
 
