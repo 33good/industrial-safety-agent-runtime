@@ -41,6 +41,8 @@ class MemoryModule:
                     dispatch_actions TEXT,
                     approval_id TEXT,
                     approval_status TEXT DEFAULT 'auto',
+                    lifecycle_status TEXT,
+                    timeline TEXT,
                     created_at TEXT DEFAULT (datetime('now','localtime'))
                 )
             """)
@@ -52,6 +54,8 @@ class MemoryModule:
                 "dispatch_actions": "ALTER TABLE alarms ADD COLUMN dispatch_actions TEXT",
                 "approval_id": "ALTER TABLE alarms ADD COLUMN approval_id TEXT",
                 "approval_status": "ALTER TABLE alarms ADD COLUMN approval_status TEXT DEFAULT 'auto'",
+                "lifecycle_status": "ALTER TABLE alarms ADD COLUMN lifecycle_status TEXT",
+                "timeline": "ALTER TABLE alarms ADD COLUMN timeline TEXT",
             }
             for name, sql in migrations.items():
                 if name not in columns:

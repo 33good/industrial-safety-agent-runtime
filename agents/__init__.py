@@ -24,6 +24,8 @@ class AlarmEvent:
     dispatch_actions: list = field(default_factory=list)
     approval_id: str = ""
     approval_status: str = "auto"
+    lifecycle_status: str = "detected"
+    timeline: list = field(default_factory=list)
 
 
 class BaseAgent:

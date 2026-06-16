@@ -37,8 +37,11 @@ class HumanLoopTool:
         - B 级：自动通过，但记录日志
         - C 级：直接放行
         """
-        levels = {e.get("level", "B") for e in event.events}
-        top_level = "A" if "A" in levels else ("B" if "B" in levels else "C")
+        decision = getattr(event, "dispatch_decision", {}) or {}
+        top_level = str(decision.get("final_level") or "").upper()
+        if top_level not in {"A", "B", "C"}:
+            levels = {e.get("level", "B") for e in event.events}
+            top_level = "A" if "A" in levels else ("B" if "B" in levels else "C")
 
         if top_level == "A":
             return self._hold_for_approval(event)
@@ -62,6 +65,8 @@ class HumanLoopTool:
             "llm_analysis": event.llm_analysis or "待人工审核",
             "llm_recommendation": getattr(event, "llm_recommendation", {}) or {},
             "dispatch_decision": getattr(event, "dispatch_decision", {}) or {},
+            "lifecycle_status": "pending_approval",
+            "timeline": getattr(event, "timeline", []) or [],
             "status": "pending",
             "created_at": datetime.now().isoformat()
         }
@@ -73,6 +78,7 @@ class HumanLoopTool:
             self._approvals[pending_id] = work_order
         event.approval_id = pending_id
         event.approval_status = "pending"
+        event.lifecycle_status = "pending_approval"
 
         print(f"\n{'!' * 60}")
         print(f"[可信拦截] A级高危事件被拦截！")

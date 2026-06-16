@@ -42,11 +42,17 @@ class ReporterTool:
             f"- 裁决策略: {decision.get('policy', '无')}\n"
             f"- 是否采纳LLM: {'是' if decision.get('llm_adopted') else '否'}"
         ) if decision else "无调度裁决"
+        timeline = getattr(event, "timeline", []) or []
+        timeline_md = "\n".join(
+            f"- [{item.get('timestamp', '')}] {item.get('label', item.get('stage', ''))}: {item.get('detail', '')}"
+            for item in timeline
+        ) or "无"
 
         content = f"""# 工厂安全事件报告
 
 **时间**: {event.timestamp}
 **事件ID**: {getattr(event, 'event_id', '') or '无'}
+**生命周期状态**: {getattr(event, 'lifecycle_status', '') or '无'}
 **等级**: {("A" if any(e.get('level')=='A' for e in event.events) else ("B" if any(e.get('level')=='B' for e in event.events) else "C"))}级
 **审批工单**: {getattr(event, 'approval_id', '') or '无'}
 
@@ -64,6 +70,9 @@ class ReporterTool:
 
 ## 处置措施
 {chr(10).join('- ' + a.get('action','') for a in event.dispatch_actions) if event.dispatch_actions else '无'}
+
+## 事件时间线
+{timeline_md}
 ---
 *由安全智能体系统自动生成*
 """

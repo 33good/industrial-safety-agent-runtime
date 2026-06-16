@@ -210,7 +210,7 @@ button{font:inherit}
   bottom:var(--side-bottom);
   width:var(--right-w);
   display:grid;
-  grid-template-rows:auto auto auto minmax(178px,.6fr) minmax(220px,1fr) auto;
+  grid-template-rows:auto auto auto minmax(158px,.58fr) minmax(200px,1fr) auto;
   overflow:hidden;
 }
 .panel{
@@ -402,6 +402,41 @@ button{font:inherit}
   font-family:"Consolas","DIN Alternate",monospace;
 }
 .chain-meta strong{color:rgba(232,244,239,.78);font-weight:600}
+.event-timeline{
+  max-height:58px;
+  margin-top:9px;
+  padding-top:8px;
+  border-top:1px solid rgba(255,255,255,.05);
+  overflow-y:auto;
+}
+.event-timeline::-webkit-scrollbar{width:4px}
+.event-timeline::-webkit-scrollbar-thumb{background:rgba(98,243,221,.22)}
+.timeline-row{
+  display:grid;
+  grid-template-columns:48px 1fr;
+  gap:8px;
+  padding:3px 0;
+  color:rgba(232,244,239,.5);
+  font-size:10px;
+  line-height:1.35;
+}
+.timeline-row time{
+  color:rgba(98,243,221,.7);
+  font-family:"Consolas","DIN Alternate",monospace;
+  white-space:nowrap;
+}
+.timeline-row strong{
+  display:block;
+  color:rgba(232,244,239,.82);
+  font-weight:600;
+}
+.timeline-row span{
+  display:block;
+  margin-top:1px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
 .n,.metric-mini strong,#s-t,#s-a,#s-c,#m-latency,#m-fps,#top-time{
   font-family:"DIN Alternate","Oswald","Bebas Neue","Impact","Consolas",monospace!important;
   letter-spacing:1px;
@@ -411,7 +446,7 @@ button{font:inherit}
   color:var(--cyan);
   text-shadow:0 0 10px rgba(98,243,221,.4);
 }
-#alarms{min-height:0;overflow-y:auto;padding:12px 14px 14px 30px}
+#alarms{min-height:0;overflow-y:auto;padding:12px 14px 14px 30px;pointer-events:auto}
 #alarms::-webkit-scrollbar,#llm-card::-webkit-scrollbar{width:5px}
 #alarms::-webkit-scrollbar-thumb,#llm-card::-webkit-scrollbar-thumb{background:rgba(122,238,214,.22);border-radius:6px}
 .empty{height:100%;min-height:120px;display:grid;place-items:center;color:rgba(232,244,239,.28);font-size:12px;text-align:center}
@@ -459,10 +494,30 @@ button{font:inherit}
   font-family:"Consolas","DIN Alternate",monospace;
 }
 .card .meta strong{color:rgba(232,244,239,.72);font-weight:500}
+.approval-card{
+  position:sticky;
+  top:0;
+  z-index:12;
+  padding-bottom:14px;
+  background:
+    linear-gradient(90deg,rgba(255,92,101,.16) 0%,rgba(8,13,13,.92) 100%),
+    rgba(8,13,13,.96);
+  box-shadow:0 10px 24px rgba(0,0,0,.32),inset 0 0 0 1px rgba(255,92,101,.2);
+}
+.approval-actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:12px;
+  position:relative;
+  z-index:13;
+  pointer-events:auto;
+}
 .cyber-btn{
   position:relative;
   flex:1;
-  height:32px;
+  min-width:0;
+  height:36px;
   background:transparent;
   border:1px solid currentColor;
   border-radius:0;
@@ -471,6 +526,7 @@ button{font:inherit}
   font-weight:700;
   letter-spacing:4px;
   cursor:pointer;
+  pointer-events:auto;
   overflow:hidden;
   transition:all .2s ease;
   clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));
@@ -594,6 +650,13 @@ button{font:inherit}
   box-shadow:0 0 30px rgba(255,183,74,.14);
 }
 #status-core.warn .core-state{text-shadow:0 0 16px rgba(255,183,74,.42)}
+#status-core.approved{
+  color:var(--green);
+  border-top-color:rgba(120,208,141,.52);
+  border-bottom-color:rgba(120,208,141,.24);
+  box-shadow:0 0 30px rgba(120,208,141,.16);
+}
+#status-core.approved .core-state{text-shadow:0 0 16px rgba(120,208,141,.48)}
 @keyframes core-alert{0%{filter:brightness(2);transform:translateX(-50%) scale(1.04)}100%{filter:none;transform:translateX(-50%) scale(1)}}
 .label3d{
   --label-color:#ff5c65;
@@ -627,12 +690,22 @@ button{font:inherit}
   text-shadow:0 0 10px var(--label-color);
 }
 .label3d .reason{display:block}
+.label3d .state{
+  display:block;
+  margin-top:4px;
+  padding-top:3px;
+  border-top:1px solid rgba(255,255,255,.16);
+  color:#fff;
+  font-family:"DIN Alternate","Consolas",monospace;
+  font-size:9px;
+  letter-spacing:1.4px;
+}
 @media (max-width:1100px){
   :root{--hud-gutter:12px;--left-w:280px;--right-w:348px;--side-top:94px}
   #top-bar{grid-template-columns:1fr auto;right:12px;left:12px}
   #top-center{display:none}
   #left-stack{width:var(--left-w)}
-  #right-panel{width:var(--right-w);grid-template-rows:auto auto auto minmax(168px,.72fr) minmax(0,1fr) auto}
+  #right-panel{width:var(--right-w);grid-template-rows:auto auto auto minmax(150px,.68fr) minmax(0,1fr) auto}
   #llm-card .txt{font-size:11.5px;line-height:1.66}
 }
 @media (max-width:820px){
@@ -643,7 +716,7 @@ button{font:inherit}
   #top-bar{height:auto;display:block}
   #system-meta{margin-top:10px;justify-content:flex-start;flex-wrap:wrap}
   #left-stack{display:grid;grid-template-rows:220px 260px auto}
-  #right-panel{display:grid;grid-template-rows:auto auto auto minmax(230px,auto) 240px auto}
+  #right-panel{display:grid;grid-template-rows:auto auto auto minmax(210px,auto) 240px auto}
   #view-controls{justify-content:center}
 }
 </style>
@@ -718,6 +791,9 @@ button{font:inherit}
       <div class="chain-meta">
         <span>工单 <strong id="chain-approval-id">--</strong></span>
         <span>工具 <strong id="chain-tools-count">0/0</strong></span>
+      </div>
+      <div class="event-timeline" id="event-timeline">
+        <div class="timeline-row"><time>--:--</time><div><strong>等待事件</strong><span>感知、分析、裁决、执行链路将在这里同步</span></div></div>
       </div>
     </div>
     <div id="llm-card"><div class="hd">AI 视觉分析</div><div class="txt">等待触发</div></div>
@@ -1559,6 +1635,7 @@ const chainEls={
   eventId:document.getElementById('chain-event-id'),
   approvalId:document.getElementById('chain-approval-id'),
   toolsCount:document.getElementById('chain-tools-count'),
+  timeline:document.getElementById('event-timeline'),
   steps:{
     sense:document.querySelector('[data-chain="sense"]'),
     llm:document.querySelector('[data-chain="llm"]'),
@@ -1572,6 +1649,7 @@ const WS_URL=`ws://${window.location.hostname||'localhost'}:5001`;
 const API_URL=`http://${window.location.hostname||'localhost'}:5000`;
 const processedEventIds=new Set();
 const shownApprovalIds=new Set();
+const eventTargetMap=new Map();
 let trustState={};
 
 function setFlowState(stage='edge'){
@@ -1606,8 +1684,32 @@ function _mergeTrustData(data){
   if(data.actions)next.actions=data.actions;
   if(data.llm_recommendation)next.llm_recommendation=data.llm_recommendation;
   if(data.dispatch_decision)next.dispatch_decision=data.dispatch_decision;
+  if(data.timeline){
+    const seen=new Set();
+    next.timeline=[...(base.timeline||[]),...(data.timeline||[])].filter(item=>{
+      const key=`${item.stage||''}|${item.timestamp||''}|${item.detail||''}`;
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    }).slice(-12);
+  }
   trustState=next;
   return trustState;
+}
+function _timeShort(ts){
+  const raw=String(ts||'');
+  const m=raw.match(/(\d{2}:\d{2})(?::\d{2})?/);
+  return m?m[1]:'--:--';
+}
+function renderEventTimeline(items=[]){
+  if(!chainEls.timeline)return;
+  const rows=items.slice(-6);
+  if(!rows.length){
+    chainEls.timeline.innerHTML='<div class="timeline-row"><time>--:--</time><div><strong>等待事件</strong><span>感知、分析、裁决、执行链路将在这里同步</span></div></div>';
+    return;
+  }
+  chainEls.timeline.innerHTML=rows.map(item=>`<div class="timeline-row"><time>${escapeHtml(_timeShort(item.timestamp))}</time><div><strong>${escapeHtml(item.label||item.stage||'事件')}</strong><span>${escapeHtml(item.detail||'状态已更新')}</span></div></div>`).join('');
+  chainEls.timeline.scrollTop=chainEls.timeline.scrollHeight;
 }
 function updateTrustChain(data={},sourceLabel='实时推送'){
   const state=_mergeTrustData(data);
@@ -1623,6 +1725,7 @@ function updateTrustChain(data={},sourceLabel='实时推送'){
   if(chainEls.eventId)chainEls.eventId.textContent=`事件 ${eventId}`;
   if(chainEls.approvalId)chainEls.approvalId.textContent=state.approval_id||'--';
   if(chainEls.toolsCount)chainEls.toolsCount.textContent=toolSummary;
+  renderEventTimeline(state.timeline||[]);
 
   const firstLevel=events[0]?.level||decision.final_level||rec.risk_level||'--';
   _chainSet('sense',events.length?'done':'pending',events.length?`${events.length}项 / ${firstLevel}级`:'待接收');
@@ -1724,12 +1827,12 @@ function _showApprovalCard(approvalId='',eventId=''){
   if(approvalKey)shownApprovalIds.add(approvalKey);
   setFlowState('decision');
   const card=document.createElement('div');
-  card.className='card A';
+  card.className='card A approval-card';
   card.dataset.approvalId=approvalId||'';
   card.dataset.eventId=eventId||'';
   card.innerHTML=`<div class="t"><span>A级高危事件 · 待安全员审批</span><span class="b A">A 级</span></div>
     <div class="d">系统已拦截自动关停指令</div>
-    <div style="display:flex;gap:12px;margin-top:12px">
+    <div class="approval-actions">
       <button type="button" class="cyber-btn reject">驳回指令</button>
       <button type="button" class="cyber-btn auth">授权执行</button>
     </div>`;
@@ -1747,6 +1850,7 @@ function _showApprovalCard(approvalId='',eventId=''){
   card.querySelectorAll('button')[0].onclick=async()=>{
     const result=await submitApproval('reject');
     updateTrustChain({event_id:eventId,approval_id:approvalId,approval_status:'rejected',result:result.result},'审批回传');
+    updateEventLifecycle({event_id:eventId,approval_id:approvalId,approval_status:'rejected',lifecycle_status:'rejected'});
     card.innerHTML=`<div style="color:var(--red);border-left:3px solid var(--red);padding:8px 8px 8px 10px;font-weight:700;background:rgba(255,92,101,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
       [REJECTED] ${escapeHtml(result.result||'处置指令已驳回')}
     </div>`;
@@ -1760,6 +1864,7 @@ function _showApprovalCard(approvalId='',eventId=''){
     </div>`;
     const result=await submitApproval('approve');
     updateTrustChain({event_id:eventId,approval_id:approvalId,approval_status:'approved',result:result.result},'审批回传');
+    updateEventLifecycle({event_id:eventId,approval_id:approvalId,approval_status:'approved',lifecycle_status:'approved'});
     setTimeout(()=>{
       card.innerHTML=`<div style="color:var(--green);border-left:3px solid var(--green);padding:8px 8px 8px 10px;font-weight:700;background:rgba(120,208,141,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
         [ACK] ${escapeHtml(result.result||'审批通过，处置指令已确认')}
@@ -1768,6 +1873,7 @@ function _showApprovalCard(approvalId='',eventId=''){
     },500);
   };
   listEl.prepend(card);
+  listEl.scrollTop=0;
 }
 function _buildActionsDiv(actions){
   const ab=document.createElement('div');
@@ -1852,7 +1958,7 @@ function stateForLevel(level,violations=[]){
 function setHumanStateVisual(t,state){
   if(!t)return;
   t.state=state;
-  const opacityByState={active:1,warning:1,critical:1,stale:.46,resolved:0};
+  const opacityByState={active:1,warning:1,critical:1,pending_approval:1,decided:1,approved:.78,rejected:.5,stale:.46,resolved:0};
   const targetOpacity=opacityByState[state]??1;
   for(const root of [t.human,t.label,t.ring]){
     if(!root)continue;
@@ -1869,9 +1975,105 @@ function setHumanStateVisual(t,state){
   }
 }
 
+function lifecycleStyle(status,level='B'){
+  const normalized=String(status||'').toLowerCase();
+  if(normalized==='pending_approval'||normalized==='pending')return {state:'pending_approval',color:0xffb74a,label:'PENDING APPROVAL',core:'等待人工审批'};
+  if(normalized==='approved')return {state:'approved',color:0x78d08d,label:'APPROVED',core:'处置授权完成'};
+  if(normalized==='rejected')return {state:'rejected',color:0xff5c65,label:'REJECTED',core:'处置指令驳回'};
+  if(normalized==='decided')return {state:'decided',color:level==='A'?0xff5c65:level==='B'?0xffb74a:0x62f3dd,label:'DISPATCHED',core:'调度裁决完成'};
+  if(normalized==='analyzing')return {state:stateForLevel(level),color:level==='A'?0xff5c65:level==='B'?0xffb74a:0x62f3dd,label:'ANALYZING',core:'Agent分析中'};
+  return {state:stateForLevel(level),color:level==='A'?0xff5c65:level==='B'?0xffb74a:0x62f3dd,label:'DETECTED',core:'目标已检测'};
+}
+
+function updateLifecycleLabel(t,label,color){
+  const r=(color>>16)&255,g=(color>>8)&255,b=color&255;
+  t.label?.traverse?.(o=>{
+    if(!o.element)return;
+    o.element.style.setProperty('--label-color',`rgb(${r}, ${g}, ${b})`);
+    o.element.style.setProperty('--label-bg',`rgba(${r}, ${g}, ${b}, 0.25)`);
+    let state=o.element.querySelector('.state');
+    if(!state){
+      state=document.createElement('span');
+      state.className='state';
+      o.element.appendChild(state);
+    }
+    state.textContent=label;
+  });
+}
+
+function createLifecyclePulse(pos,color,status){
+  if(!pos)return;
+  const isApproved=status==='approved';
+  const radius=isApproved?0.72:0.92;
+  const opacity=isApproved?0.5:0.62;
+  const ring=new THREE.Mesh(
+    new THREE.TorusGeometry(radius,.035,14,72),
+    new THREE.MeshBasicMaterial({color,transparent:true,opacity,blending:THREE.AdditiveBlending,depthWrite:false})
+  );
+  ring.rotation.x=-Math.PI/2;
+  ring.position.set(pos.x,.12,pos.z);
+  ring.userData={created:Date.now(),lifetime:isApproved?1800:2200,type:'lifecycle',baseOpacity:opacity};
+  ring.renderOrder=7;
+  scene.add(ring);
+  transientEffects.push(ring);
+}
+
+function applyLifecycleToTarget(t,status,data={}){
+  if(!t)return;
+  const previousStatus=t.lifecycleStatus;
+  const level=(data.dispatch_decision?.final_level||data.events?.[0]?.level||t.level||'B').toUpperCase();
+  const style=lifecycleStyle(status,level);
+  t.lifecycleStatus=status;
+  recolorHumanSignal(t.human,style.color);
+  if(t.ring?.material){
+    t.ring.material.color?.setHex(style.color);
+    t.ring.material.opacity=style.state==='approved'?0.22:style.state==='rejected'?0.16:0.34;
+  }
+  updateLifecycleLabel(t,style.label,style.color);
+  setHumanStateVisual(t,style.state);
+  setCoreStatus(level,style.core);
+  statusCore.classList.toggle('approved',status==='approved');
+  if(status==='approved'){
+    statusCore.classList.remove('alert','warn');
+  }else if(status==='pending_approval'||status==='pending'){
+    statusCore.classList.remove('alert','approved');
+    statusCore.classList.add('warn');
+  }else if(status==='rejected'){
+    statusCore.classList.remove('warn','approved');
+    statusCore.classList.add('alert');
+  }else{
+    statusCore.classList.remove('approved');
+  }
+  if(previousStatus!==status&&(status==='approved'||status==='rejected'||status==='pending_approval')){
+    createLifecyclePulse(t.human.position,style.color,status);
+  }
+}
+
+function bindEventTarget(eventId,tid){
+  if(!eventId||!tid)return;
+  if(!eventTargetMap.has(eventId))eventTargetMap.set(eventId,new Set());
+  eventTargetMap.get(eventId).add(tid);
+}
+
+function eventTargetIds(data={}){
+  const ids=new Set(eventTargetMap.get(data.event_id)||[]);
+  for(const ev of data.events||[]){
+    const bbox=normalizeBBox(ev.bbox||{x:1000,y:350,width:80,height:160});
+    ids.add(trackKeyFor(ev,bbox,data));
+  }
+  return [...ids];
+}
+
+function updateEventLifecycle(data={}){
+  const status=data.lifecycle_status||(data.approval_status==='pending'?'pending_approval':data.approval_status)||'detected';
+  const ids=eventTargetIds(data);
+  ids.forEach(tid=>applyLifecycleToTarget(trackedHumans[tid],status,data));
+}
+
 function setCoreStatus(level,text){
   statusCoreState.textContent=text;
   statusCoreKicker.textContent=level==='A'?'CRITICAL TARGET LOCKED':level==='B'?'VIOLATION TRACKING':'SECURITY TWIN ONLINE';
+  statusCore.classList.remove('approved');
   statusCore.classList.toggle('alert',level==='A');
   statusCore.classList.toggle('warn',level==='B');
 }
@@ -1904,6 +2106,7 @@ function addAlarm(data,ev){
   const eventTime=escapeHtml(data.timestamp||new Date().toLocaleString('zh-CN',{hour12:false}));
   const bbox=normalizeBBox(ev.bbox||{x:1000,y:350,width:80,height:160});
   const tid=trackKeyFor(ev,bbox,data);
+  bindEventTarget(data.event_id,tid);
   const targetId=formatTargetId(tid);
   const camId=escapeHtml(ev.cameraId||data.cameraId||'CAM-01');
   const confRaw=Number(ev.confidence??ev.score??ev.conf??(.86+Math.random()*.09));
@@ -1991,9 +2194,15 @@ function eventKeyForData(data){
 }
 function renderEventData(data){
   updateTrustChain(data,data._restored?'历史恢复':'实时推送');
-  if(!data.events?.length)return;
+  if(!data.events?.length){
+    updateEventLifecycle(data);
+    return;
+  }
   const key=eventKeyForData(data);
-  if(key&&processedEventIds.has(key))return;
+  if(key&&processedEventIds.has(key)){
+    updateEventLifecycle(data);
+    return;
+  }
   if(key)processedEventIds.add(key);
   if(first){listEl.innerHTML='';first=false}
   if(data.image_url&&data.image_url!==lastImageUrl){
@@ -2001,11 +2210,13 @@ function renderEventData(data){
     camImg.src=data.image_url;
   }
   data.events.forEach(ev=>addAlarm(data,ev));
+  updateEventLifecycle(data);
 }
 function handleMessage(raw){
   const data=typeof raw==='string'?JSON.parse(raw):raw;
   if(data.type==='approval_result'){
     updateTrustChain(data,'审批回传');
+    updateEventLifecycle(data);
     const status=data.approval_status==='approved'?'已授权执行':'已驳回指令';
     renderLLM(`${llmTxt.textContent}\n\n【审批结果】${status}：${data.result||''}`);
     return;
@@ -2178,6 +2389,9 @@ function animate(){
       o.material.opacity=.24*(1-t);
     }else if(o.userData.type==='trail'||o.userData.type==='trailDot'){
       o.material.opacity=(o.userData.type==='trail'?0.42:.28)*(1-t);
+    }else if(o.userData.type==='lifecycle'){
+      o.scale.setScalar(1+t*2.4);
+      o.material.opacity=(o.userData.baseOpacity||o.material.opacity||.5)*(1-t);
     }
     if(t>=1){
       scene.remove(o);
@@ -2194,6 +2408,7 @@ function animate(){
   }
   for(const[tid,t]of Object.entries(trackedHumans)){
     const silentFor=now-t.lastSeen;
+    const terminal=t.lifecycleStatus==='approved'||t.lifecycleStatus==='rejected';
     if(silentFor>HUMAN_TRACK_TTL){
       if(!t.resolvedAt){
         t.resolvedAt=now;
@@ -2201,7 +2416,7 @@ function animate(){
       }else if(now-t.resolvedAt>HUMAN_FADE_DURATION){
         removeTrackedHuman(tid,t);
       }
-    }else if(silentFor>HUMAN_STALE_AFTER&&t.state!=='stale'){
+    }else if(!terminal&&silentFor>HUMAN_STALE_AFTER&&t.state!=='stale'){
       setHumanStateVisual(t,'stale');
     }
   }

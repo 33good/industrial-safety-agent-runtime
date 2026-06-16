@@ -32,6 +32,8 @@ class DatabaseTool:
                     dispatch_actions TEXT,
                     approval_id TEXT,
                     approval_status TEXT,
+                    lifecycle_status TEXT,
+                    timeline TEXT,
                     image_path TEXT,
                     created_at TEXT DEFAULT (datetime('now','localtime'))
                 )
@@ -51,6 +53,8 @@ class DatabaseTool:
             "dispatch_actions": "ALTER TABLE alarms ADD COLUMN dispatch_actions TEXT",
             "approval_id": "ALTER TABLE alarms ADD COLUMN approval_id TEXT",
             "approval_status": "ALTER TABLE alarms ADD COLUMN approval_status TEXT",
+            "lifecycle_status": "ALTER TABLE alarms ADD COLUMN lifecycle_status TEXT",
+            "timeline": "ALTER TABLE alarms ADD COLUMN timeline TEXT",
             "image_path": "ALTER TABLE alarms ADD COLUMN image_path TEXT",
         }
         for name, sql in migrations.items():
@@ -83,15 +87,19 @@ class DatabaseTool:
         event_id = getattr(event, "event_id", "")
         approval_id = getattr(event, "approval_id", "")
         approval_status = getattr(event, "approval_status", "")
+        lifecycle_status = getattr(event, "lifecycle_status", "")
+        timeline = json.dumps(getattr(event, "timeline", []) or [], ensure_ascii=False)
 
         with self._lock, sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 "INSERT INTO alarms (event_id, timestamp, event_types, level, detail, bbox_json, llm_analysis, "
-                "llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status, image_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status, "
+                "lifecycle_status, timeline, image_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     event_id, event.timestamp, event_types, level, detail, bbox_json, event.llm_analysis,
-                    llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status, image_path
+                    llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status,
+                    lifecycle_status, timeline, image_path
                 )
             )
         return f"已存入数据库 (total={self.count()})"
