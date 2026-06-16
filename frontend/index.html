@@ -781,7 +781,7 @@ button{font:inherit}
   <section id="left-stack" class="hud">
     <div id="cam-panel" class="panel">
       <div class="panel-h"><h2>CAM-01 实时感知</h2><small>EDGE VISION</small></div>
-      <img id="cam-img" src="" alt="等待报警画面">
+      <img id="cam-img" src="" alt="等待实时视频">
       <div id="cam-target"></div>
     </div>
     <div id="chart-box" class="panel">
@@ -793,7 +793,7 @@ button{font:inherit}
       <div class="health-grid">
         <div class="metric-mini ok" id="h-api"><strong>--</strong><span>后端接口</span></div>
         <div class="metric-mini warn" id="h-ws"><strong>0</strong><span>前端连接</span></div>
-        <div class="metric-mini ok" id="h-llm"><strong>--</strong><span>视觉模型</span></div>
+        <div class="metric-mini ok" id="h-camera"><strong>--</strong><span>实时视频</span></div>
         <div class="metric-mini ok" id="h-db"><strong>--</strong><span>数据库</span></div>
         <div class="metric-mini warn" id="h-approval"><strong>0</strong><span>待审批</span></div>
         <div class="metric-mini ok" id="h-runtime"><strong id="m-fps">--</strong><span>三维帧率</span></div>
@@ -1664,7 +1664,7 @@ const healthEls={
   updated:document.getElementById('health-updated'),
   api:document.getElementById('h-api'),
   ws:document.getElementById('h-ws'),
-  llm:document.getElementById('h-llm'),
+  camera:document.getElementById('h-camera'),
   db:document.getElementById('h-db'),
   approval:document.getElementById('h-approval')
 };
@@ -1687,10 +1687,13 @@ const chainEls={
 let ws,total=0,crit=0,first=true,lastImageUrl='',trendChart,isFocusing=false;
 const WS_URL=`ws://${window.location.hostname||'localhost'}:5001`;
 const API_URL=`http://${window.location.hostname||'localhost'}:5000`;
+const CAMERA_STREAM_URL=`${API_URL}/camera/stream`;
 const processedEventIds=new Set();
 const shownApprovalIds=new Set();
 const eventTargetMap=new Map();
 let trustState={};
+camImg.src=CAMERA_STREAM_URL;
+camImg.onerror=()=>{setHealthItem(healthEls.camera,'OFF','bad')};
 
 function setFlowState(stage='edge'){
   const idx={cam:0,edge:1,llm:2,decision:3}[stage]??1;
@@ -1809,18 +1812,19 @@ async function refreshHealth(){
     const data=await resp.json();
     const services=data.services||{};
     const wsInfo=services.websocket||{};
-    const llm=services.llm||{};
+    const camera=services.camera||{};
     const db=services.database||{};
     const approval=services.approval||{};
     setHealthItem(healthEls.api,'OK','ok');
     setHealthItem(healthEls.ws,String(wsInfo.clients??0),(ws&&ws.readyState===WebSocket.OPEN)?'ok':'warn');
-    setHealthItem(healthEls.llm,llm.model||llm.mode||'--',llm.status==='configured'?'ok':'warn');
+    setHealthItem(healthEls.camera,camera.status==='online'?`${camera.fps||0} FPS`:'OFF',camera.status==='online'?'ok':'bad');
     setHealthItem(healthEls.db,`${db.today??0}/${db.total??0}`,'ok');
     setHealthItem(healthEls.approval,String(approval.pending??0),(approval.pending??0)>0?'warn':'ok');
     if(healthEls.updated)healthEls.updated.textContent=_timeShort(data.timestamp);
   }catch(e){
     setHealthItem(healthEls.api,'DOWN','bad');
     setHealthItem(healthEls.ws,'--','bad');
+    setHealthItem(healthEls.camera,'--','bad');
     if(healthEls.updated)healthEls.updated.textContent='OFFLINE';
   }
 }
@@ -2277,10 +2281,7 @@ function renderEventData(data){
   }
   if(key)processedEventIds.add(key);
   if(first){listEl.innerHTML='';first=false}
-  if(data.image_url&&data.image_url!==lastImageUrl){
-    lastImageUrl=data.image_url;
-    camImg.src=data.image_url;
-  }
+  if(data.image_url&&data.image_url!==lastImageUrl)lastImageUrl=data.image_url;
   data.events.forEach(ev=>addAlarm(data,ev));
   updateEventLifecycle(data);
 }
