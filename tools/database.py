@@ -32,6 +32,10 @@ class DatabaseTool:
                     dispatch_actions TEXT,
                     approval_id TEXT,
                     approval_status TEXT,
+                    execution_id TEXT,
+                    execution_status TEXT,
+                    execution_result TEXT,
+                    execution_actions TEXT,
                     lifecycle_status TEXT,
                     timeline TEXT,
                     image_path TEXT,
@@ -53,6 +57,10 @@ class DatabaseTool:
             "dispatch_actions": "ALTER TABLE alarms ADD COLUMN dispatch_actions TEXT",
             "approval_id": "ALTER TABLE alarms ADD COLUMN approval_id TEXT",
             "approval_status": "ALTER TABLE alarms ADD COLUMN approval_status TEXT",
+            "execution_id": "ALTER TABLE alarms ADD COLUMN execution_id TEXT",
+            "execution_status": "ALTER TABLE alarms ADD COLUMN execution_status TEXT",
+            "execution_result": "ALTER TABLE alarms ADD COLUMN execution_result TEXT",
+            "execution_actions": "ALTER TABLE alarms ADD COLUMN execution_actions TEXT",
             "lifecycle_status": "ALTER TABLE alarms ADD COLUMN lifecycle_status TEXT",
             "timeline": "ALTER TABLE alarms ADD COLUMN timeline TEXT",
             "image_path": "ALTER TABLE alarms ADD COLUMN image_path TEXT",
@@ -98,6 +106,46 @@ class DatabaseTool:
             )
             return True
 
+    def update_execution_status(self, event_id: str, approval_id: str, execution: dict, timeline_step: dict | None = None) -> bool:
+        """Persist actuator execution result after approval."""
+        if not event_id and not approval_id:
+            return False
+        execution = execution or {}
+        status = execution.get("status", "")
+        lifecycle_status = "executed" if status == "executed" else ("rejected" if status == "cancelled" else status)
+        with self._lock, sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT id, timeline FROM alarms WHERE "
+                "(? != '' AND event_id = ?) OR (? != '' AND approval_id = ?) "
+                "ORDER BY id DESC LIMIT 1",
+                (event_id or "", event_id or "", approval_id or "", approval_id or "")
+            ).fetchone()
+            if not row:
+                return False
+            timeline = []
+            if row["timeline"]:
+                try:
+                    timeline = json.loads(row["timeline"])
+                except Exception:
+                    timeline = []
+            if timeline_step:
+                timeline.append(timeline_step)
+            conn.execute(
+                "UPDATE alarms SET execution_id=?, execution_status=?, execution_result=?, execution_actions=?, "
+                "lifecycle_status=?, timeline=? WHERE id=?",
+                (
+                    execution.get("execution_id", ""),
+                    status,
+                    execution.get("detail", ""),
+                    json.dumps(execution.get("commands", []) or [], ensure_ascii=False),
+                    lifecycle_status,
+                    json.dumps(timeline[-20:], ensure_ascii=False),
+                    row["id"],
+                )
+            )
+            return True
+
     def store(self, event) -> str:
         """存储报警事件"""
         event_types = ", ".join(e["type"] for e in event.events)
@@ -116,6 +164,10 @@ class DatabaseTool:
         event_id = getattr(event, "event_id", "")
         approval_id = getattr(event, "approval_id", "")
         approval_status = getattr(event, "approval_status", "")
+        execution_id = getattr(event, "execution_id", "")
+        execution_status = getattr(event, "execution_status", "")
+        execution_result = getattr(event, "execution_result", "")
+        execution_actions = json.dumps(getattr(event, "execution_actions", []) or [], ensure_ascii=False)
         lifecycle_status = getattr(event, "lifecycle_status", "")
         timeline = json.dumps(getattr(event, "timeline", []) or [], ensure_ascii=False)
 
@@ -123,12 +175,12 @@ class DatabaseTool:
             conn.execute(
                 "INSERT INTO alarms (event_id, timestamp, event_types, level, detail, bbox_json, llm_analysis, "
                 "llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status, "
-                "lifecycle_status, timeline, image_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "execution_id, execution_status, execution_result, execution_actions, lifecycle_status, timeline, image_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     event_id, event.timestamp, event_types, level, detail, bbox_json, event.llm_analysis,
                     llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status,
-                    lifecycle_status, timeline, image_path
+                    execution_id, execution_status, execution_result, execution_actions, lifecycle_status, timeline, image_path
                 )
             )
         return f"已存入数据库 (total={self.count()})"

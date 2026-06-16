@@ -13,13 +13,9 @@ import uuid
 from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from PIL import Image, ImageDraw, ImageFont
-
-try:
-    import cv2
-    HAS_CV2 = True
-except Exception:
-    cv2 = None
-    HAS_CV2 = False
+from services.camera_stream import CameraStreamWorker
+from services.demo_scenarios import demo_alarm_body, demo_image
+from services.recent_events import RecentEventStore
 
 # agent 模块
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -31,6 +27,7 @@ from tools.database import DatabaseTool
 from tools.notifier import NotifierTool
 from tools.reporter import ReporterTool
 from tools.human_loop import HumanLoopTool
+from tools.actuator import ActuatorTool
 
 # ===== 配置 =====
 LISTEN_PORT = 5000
@@ -56,9 +53,7 @@ PUBLIC_URL = "https://3f6488c2.r9.cpolar.top"
 
 os.makedirs(ALARM_DIR, exist_ok=True)
 
-_RECENT_EVENTS = []
-_RECENT_LOCK = threading.Lock()
-_RECENT_LIMIT = 50
+_RECENT_STORE = RecentEventStore(limit=50)
 
 
 def _new_event_id() -> str:
@@ -76,146 +71,14 @@ def _timeline(stage: str, label: str, detail: str = "") -> dict:
 
 def _remember_event(event_data: dict):
     """保存最近事件，供前端刷新后恢复状态。按 event_id 合并快速告警和LLM结果。"""
-    if not isinstance(event_data, dict):
-        return
-    event_id = event_data.get("event_id") or _new_event_id()
-    event_data["event_id"] = event_id
-    with _RECENT_LOCK:
-        for idx, item in enumerate(_RECENT_EVENTS):
-            if item.get("event_id") == event_id:
-                merged = dict(item)
-                merged.update(event_data)
-                if item.get("timeline") or event_data.get("timeline"):
-                    seen = set()
-                    merged["timeline"] = [
-                        step for step in [*(item.get("timeline") or []), *(event_data.get("timeline") or [])]
-                        if not ((step.get("stage"), step.get("timestamp"), step.get("detail")) in seen
-                                or seen.add((step.get("stage"), step.get("timestamp"), step.get("detail"))))
-                    ][-20:]
-                _RECENT_EVENTS[idx] = merged
-                return
-        _RECENT_EVENTS.insert(0, dict(event_data))
-        del _RECENT_EVENTS[_RECENT_LIMIT:]
+    _RECENT_STORE.remember(event_data, _new_event_id)
 
 
 def _recent_events(limit: int = 20) -> list:
-    with _RECENT_LOCK:
-        return [dict(e) for e in _RECENT_EVENTS[:max(1, min(limit, _RECENT_LIMIT))]]
+    return _RECENT_STORE.recent(limit)
 
 
-class CameraStreamWorker:
-    """Pull one RTSP stream in the background and expose latest frame as MJPEG."""
-
-    def __init__(self, rtsp_url: str):
-        self.rtsp_url = rtsp_url
-        self._lock = threading.Lock()
-        self._latest_jpeg = b""
-        self._latest_at = 0.0
-        self._fps = 0.0
-        self._online = False
-        self._error = "not_configured" if not rtsp_url else ""
-        self._started = False
-        self._reconnects = 0
-        self._frames_total = 0
-        self._stream_label = self._infer_stream_label(rtsp_url)
-        self._stop = threading.Event()
-
-    @staticmethod
-    def _infer_stream_label(rtsp_url: str) -> str:
-        if "/Streaming/Channels/102" in rtsp_url:
-            return "102 子码流"
-        if "/Streaming/Channels/101" in rtsp_url:
-            return "101 主码流"
-        return "RTSP"
-
-    def start(self):
-        if self._started:
-            return
-        self._started = True
-        threading.Thread(target=self._run, daemon=True).start()
-
-    def _run(self):
-        if not self.rtsp_url:
-            return
-        if not HAS_CV2:
-            with self._lock:
-                self._error = "opencv_unavailable"
-            return
-        while not self._stop.is_set():
-            cap = None
-            try:
-                cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
-                if not cap.isOpened():
-                    with self._lock:
-                        self._online = False
-                        self._error = "open_failed"
-                        self._reconnects += 1
-                    time.sleep(CAMERA_RECONNECT_SECONDS)
-                    continue
-                last_tick = time.time()
-                frames = 0
-                with self._lock:
-                    self._online = True
-                    self._error = ""
-                    self._reconnects += 1
-                while not self._stop.is_set():
-                    ok, frame = cap.read()
-                    if not ok or frame is None:
-                        raise RuntimeError("frame_read_failed")
-                    ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), CAMERA_JPEG_QUALITY])
-                    if not ok:
-                        continue
-                    now = time.time()
-                    frames += 1
-                    if now - last_tick >= 1.0:
-                        fps = frames / (now - last_tick)
-                        frames = 0
-                        last_tick = now
-                    else:
-                        fps = self._fps
-                    with self._lock:
-                        self._latest_jpeg = encoded.tobytes()
-                        self._latest_at = now
-                        self._fps = fps
-                        self._online = True
-                        self._error = ""
-                        self._frames_total += 1
-            except Exception as e:
-                with self._lock:
-                    self._online = False
-                    self._error = str(e)
-                    self._reconnects += 1
-            finally:
-                try:
-                    if cap:
-                        cap.release()
-                except Exception:
-                    pass
-            time.sleep(CAMERA_RECONNECT_SECONDS)
-
-    def latest(self) -> bytes:
-        with self._lock:
-            return self._latest_jpeg
-
-    def status(self) -> dict:
-        with self._lock:
-            age = time.time() - self._latest_at if self._latest_at else None
-            source = "configured" if self.rtsp_url else "missing"
-            return {
-                "status": "online" if self._online and self._latest_jpeg else "offline",
-                "source": source,
-                "fps": round(self._fps, 1),
-                "frame_age": None if age is None else round(age, 2),
-                "last_frame_at": datetime.fromtimestamp(self._latest_at).strftime("%Y-%m-%d %H:%M:%S") if self._latest_at else "",
-                "error": self._error,
-                "reconnects": self._reconnects,
-                "frames_total": self._frames_total,
-                "stream": self._stream_label,
-                "configured": bool(self.rtsp_url),
-            }
-
-
-camera_worker = CameraStreamWorker(CAMERA_RTSP_URL)
+camera_worker = CameraStreamWorker(CAMERA_RTSP_URL, CAMERA_JPEG_QUALITY, CAMERA_RECONNECT_SECONDS)
 
 # ===== 去重冷却 =====
 COOLDOWN = {"未戴安全帽": 5, "未穿反光背心": 5, "火焰检测": 3, "车辆检测": 10}
@@ -323,6 +186,7 @@ class AlarmHandler(BaseHTTPRequestHandler):
     dispatch_agent = None
     human_loop_tool = None
     database_tool = None
+    actuator_tool = None
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -385,6 +249,9 @@ class AlarmHandler(BaseHTTPRequestHandler):
             return
         if self.path == "/api/approval":
             self._handle_approval("approve" if "approve" in (self.headers.get("X-Approval-Action") or "") else "reject")
+            return
+        if self.path == "/demo/trigger":
+            self._handle_demo_trigger()
             return
         if self.path != "/alarm":
             self.send_response(404); self.end_headers(); return
@@ -531,24 +398,100 @@ class AlarmHandler(BaseHTTPRequestHandler):
             db_persisted = False
             if self.database_tool:
                 db_persisted = self.database_tool.update_approval_status(event_id, pending_id, status, timeline_step)
+            execution = {}
+            execution_db_persisted = False
+            execution_step = None
+            if self.actuator_tool:
+                execution = self.actuator_tool.handle(order, "execute" if action == "approve" else "cancel")
+                execution_step = _timeline(
+                    execution.get("status", "execution"),
+                    "执行回写",
+                    execution.get("detail", "")
+                )
+                if self.database_tool:
+                    execution_db_persisted = self.database_tool.update_execution_status(
+                        event_id, pending_id, execution, execution_step
+                    )
+            lifecycle_status = "executed" if execution.get("status") == "executed" else status
             msg = {
                 "type": "approval_result",
                 "event_id": event_id,
                 "approval_id": pending_id,
                 "approval_status": status,
-                "lifecycle_status": status,
+                "lifecycle_status": lifecycle_status,
                 "result": result,
                 "operator": operator,
                 "comment": comment,
                 "db_persisted": db_persisted,
+                "execution_id": execution.get("execution_id", ""),
+                "execution_status": execution.get("status", ""),
+                "execution_result": execution.get("detail", ""),
+                "execution_actions": execution.get("commands", []) or [],
+                "execution_db_persisted": execution_db_persisted,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "timeline": [timeline_step],
+                "timeline": [step for step in [timeline_step, execution_step] if step],
             }
-            print(f"[Approval] {pending_id} -> {status} event={event_id or '-'} db={db_persisted}")
+            print(f"[Approval] {pending_id} -> {status} event={event_id or '-'} db={db_persisted} exec={execution.get('status','-')}")
             _remember_event(msg)
             broadcast_event(msg)
             self._send_json({"status": "ok", **msg})
         except Exception as e:
+            self._send_json({"status": "error", "message": str(e)}, code=500)
+
+    def _handle_demo_trigger(self):
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(content_length) if content_length else b"{}"
+            data = json.loads(raw.decode("utf-8") or "{}")
+            scenario = str(data.get("scenario") or "a_person_vehicle").lower()
+            alarm_body = demo_alarm_body(scenario)
+            scenario = alarm_body.get("scenario", scenario)
+            img_bytes = demo_image(alarm_body, scenario)
+
+            event = self.perception_agent.process(alarm_body, img_bytes)
+            event.event_id = _new_event_id()
+            event.lifecycle_status = "analyzing"
+            event.events = event.events or []
+            if not event.events:
+                self._send_json({"status": "filtered", "scenario": scenario, "message": "demo produced no reportable event"})
+                return
+
+            event.timeline = [
+                _timeline("detected", "演示回放", f"{scenario} 样例进入数字孪生管线"),
+                _timeline("analyzing", "Agent分析", "演示事件正在复用真实Agent管线"),
+            ]
+
+            annotated_img = annotate_image(img_bytes, event.events)
+            event.image_bytes = annotated_img
+            fname = datetime.now().strftime("demo_%Y%m%d_%H%M%S_%f.jpg")
+            fpath = os.path.join(ALARM_DIR, fname)
+            with open(fpath, "wb") as f:
+                f.write(annotated_img)
+            base = PUBLIC_URL if "cpolar" in PUBLIC_URL else f"http://10.44.7.147:{LISTEN_PORT}"
+            event.image_url = f"{base}/alarms/{fname}"
+            print(f"[Demo] {scenario} -> {len(event.events)} events, screenshot={fpath}")
+
+            threading.Thread(target=self._agent_pipeline, args=(event,), daemon=True).start()
+
+            base_ws = PUBLIC_URL if "cpolar" in PUBLIC_URL else f"http://localhost:{LISTEN_PORT}"
+            ws_data = {
+                "type": "alarm",
+                "event_id": event.event_id,
+                "timestamp": event.timestamp,
+                "source": f"demo:{scenario}",
+                "lifecycle_status": event.lifecycle_status,
+                "timeline": event.timeline,
+                "image_url": f"{base_ws}/alarms/{fname}",
+                "events": [
+                    {"type": e["type"], "level": e["level"], "bbox": e["bbox"], "detail": e["detail"], "targetId": e.get("targetId", 0)}
+                    for e in event.events
+                ],
+            }
+            _remember_event(ws_data)
+            threading.Thread(target=broadcast_event, args=(ws_data,), daemon=True).start()
+            self._send_json({"status": "ok", "scenario": scenario, "event_id": event.event_id, "events": len(event.events)})
+        except Exception as e:
+            print(f"[Demo] failed: {e}")
             self._send_json({"status": "error", "message": str(e)}, code=500)
 
     def _stream_camera(self):
@@ -595,6 +538,7 @@ class AlarmHandler(BaseHTTPRequestHandler):
                 "llm": {"status": "configured" if LLM_MODE else "disabled", "mode": LLM_MODE, "model": OLLAMA_MODEL, "timeout_seconds": LLM_TIMEOUT_SECONDS},
                 "database": {"status": "ok" if self.database_tool else "missing", **db_stats},
                 "approval": {"status": "ok" if self.human_loop_tool else "missing", "pending": len(pending)},
+                "actuator": self.actuator_tool.status() if self.actuator_tool else {"status": "missing"},
                 "camera": camera_worker.status(),
             },
             "recent_events": len(recent),
@@ -714,6 +658,7 @@ def main():
     human_loop = HumanLoopTool("./data/pending")
     notifier = NotifierTool(webhook_url=NOTIFY_WEBHOOK, platform=NOTIFY_PLATFORM)
     reporter = ReporterTool("./data/reports")
+    actuator = ActuatorTool("./data/executions")
 
     # 智能体（安全Agent包含记忆模块）
     perception = PerceptionAgent()
@@ -732,6 +677,7 @@ def main():
     AlarmHandler.dispatch_agent = dispatch
     AlarmHandler.human_loop_tool = human_loop
     AlarmHandler.database_tool = db
+    AlarmHandler.actuator_tool = actuator
 
     print(f"[Agent] 感知 → 安全({LLM_MODE}+记忆) → 调度({len(dispatch.tools)}工具+可信审批) 就绪")
     stats = db.get_stats()
