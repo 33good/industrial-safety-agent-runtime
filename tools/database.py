@@ -69,6 +69,35 @@ class DatabaseTool:
             return self.query_recent(hours=1)
         return "unknown action"
 
+    def update_approval_status(self, event_id: str, approval_id: str, status: str, timeline_step: dict | None = None) -> bool:
+        """Persist final approval status so audit queries match the frontend state."""
+        if not event_id and not approval_id:
+            return False
+        lifecycle_status = "approved" if status == "approved" else "rejected"
+        with self._lock, sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                "SELECT id, timeline FROM alarms WHERE "
+                "(? != '' AND event_id = ?) OR (? != '' AND approval_id = ?) "
+                "ORDER BY id DESC LIMIT 1",
+                (event_id or "", event_id or "", approval_id or "", approval_id or "")
+            ).fetchone()
+            if not row:
+                return False
+            timeline = []
+            if row["timeline"]:
+                try:
+                    timeline = json.loads(row["timeline"])
+                except Exception:
+                    timeline = []
+            if timeline_step:
+                timeline.append(timeline_step)
+            conn.execute(
+                "UPDATE alarms SET approval_status=?, lifecycle_status=?, approval_id=?, timeline=? WHERE id=?",
+                (status, lifecycle_status, approval_id or "", json.dumps(timeline[-20:], ensure_ascii=False), row["id"])
+            )
+            return True
+
     def store(self, event) -> str:
         """存储报警事件"""
         event_types = ", ".join(e["type"] for e in event.events)

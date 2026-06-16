@@ -103,6 +103,7 @@ class HumanLoopTool:
             data = self._load_order(pid)
             if data:
                 data["status"] = "approved"
+                data["lifecycle_status"] = "approved"
                 data["approved_at"] = datetime.now().isoformat()
                 self._save_order(pid, data)
                 self._approvals[pid] = data
@@ -116,6 +117,7 @@ class HumanLoopTool:
             data = self._load_order(pid)
             if data:
                 data["status"] = "rejected"
+                data["lifecycle_status"] = "rejected"
                 data["rejected_at"] = datetime.now().isoformat()
                 self._save_order(pid, data)
                 self._approvals[pid] = data
