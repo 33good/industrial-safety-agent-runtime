@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1050" viewBox="0 0 1800 1050">
+  <defs>
+    <style>
+      .page{fill:#fff}
+      .panel{fill:#fff;stroke:#d0d0d0;stroke-width:1.3}
+      .grid{stroke:#e4e7eb;stroke-width:1}
+      .axis{stroke:#222;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .line{stroke:#4a4a4a;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}
+      .blue{stroke:#0072B2;fill:none}
+      .blueFill{fill:#EAF4FB;stroke:#0072B2}
+      .orange{stroke:#D55E00;fill:none}
+      .orangeFill{fill:#FFF1E8;stroke:#D55E00}
+      .green{stroke:#009E73;fill:none}
+      .greenFill{fill:#EAF7F1;stroke:#009E73}
+      .greyFill{fill:#F7F8FA;stroke:#9BA3AC}
+      .txt{font-family:Arial,Helvetica,"Microsoft YaHei",sans-serif;fill:#1f1f1f}
+      .title{font-size:31px;font-weight:700}
+      .subtitle{font-size:19px;fill:#606A73}
+      .tag{font-size:34px;font-weight:700}
+      .head{font-size:25px;font-weight:700}
+      .body{font-size:20px}
+      .note{font-size:17px;fill:#606A73}
+      .math{font-family:"Times New Roman",Times,serif;font-size:24px;fill:#1f1f1f}
+      .mathSmall{font-family:"Times New Roman",Times,serif;font-size:20px;fill:#1f1f1f}
+    </style>
+    <marker id="arrowBlack" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#222"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#0072B2"/>
+    </marker>
+  </defs>
+
+  <rect class="page" x="0" y="0" width="1800" height="1050"/>
+
+  <text class="txt title" x="70" y="62">Pixel-to-world mapping used in the digital-twin display</text>
+  <text class="txt subtitle" x="70" y="94">Bounding-box foot point is normalized in image space and projected to a constrained worker display area in the 3D scene.</text>
+
+  <!-- panel frames -->
+  <rect class="panel" x="70" y="135" width="510" height="790"/>
+  <rect class="panel" x="645" y="135" width="510" height="790"/>
+  <rect class="panel" x="1220" y="135" width="510" height="790"/>
+
+  <!-- panel labels -->
+  <text class="txt tag" x="95" y="182">a</text>
+  <text class="txt tag" x="670" y="182">b</text>
+  <text class="txt tag" x="1245" y="182">c</text>
+
+  <!-- Panel a -->
+  <text class="txt head" x="140" y="181">Pixel-domain detection</text>
+  <text class="txt note" x="140" y="211">Camera coordinate frame: 2000 × 700 px</text>
+
+  <rect class="greyFill" x="125" y="265" width="400" height="230"/>
+  <line class="grid" x1="125" y1="322.5" x2="525" y2="322.5"/>
+  <line class="grid" x1="125" y1="380" x2="525" y2="380"/>
+  <line class="grid" x1="125" y1="437.5" x2="525" y2="437.5"/>
+  <line class="grid" x1="205" y1="265" x2="205" y2="495"/>
+  <line class="grid" x1="285" y1="265" x2="285" y2="495"/>
+  <line class="grid" x1="365" y1="265" x2="365" y2="495"/>
+  <line class="grid" x1="445" y1="265" x2="445" y2="495"/>
+
+  <line class="axis" x1="125" y1="495" x2="525" y2="495" marker-end="url(#arrowBlack)"/>
+  <line class="axis" x1="125" y1="265" x2="125" y2="495" marker-end="url(#arrowBlack)"/>
+  <text class="txt body" x="505" y="530">u</text>
+  <text class="txt body" x="140" y="287">v</text>
+  <text class="txt note" x="123" y="530">0</text>
+  <text class="txt note" x="450" y="530">2000 px</text>
+  <text class="txt note" x="83" y="271">0</text>
+  <text class="txt note" x="71" y="500">700 px</text>
+
+  <rect class="orange" x="318" y="333" width="76" height="128" stroke-width="4"/>
+  <circle cx="356" cy="461" r="8" fill="#D55E00"/>
+  <text class="txt note" x="404" y="382">bbox</text>
+  <text class="txt note" x="404" y="466">foot point</text>
+
+  <rect class="orangeFill" x="125" y="615" width="400" height="130"/>
+  <text class="txt body" x="150" y="655">Bounding box</text>
+  <text class="math" x="150" y="696">u<tspan baseline-shift="sub" font-size="15">f</tspan> = x + w / 2</text>
+  <text class="math" x="150" y="728">v<tspan baseline-shift="sub" font-size="15">f</tspan> = y + h</text>
+
+  <!-- Panel b -->
+  <text class="txt head" x="715" y="181">Coordinate transform</text>
+  <text class="txt note" x="715" y="211">Implemented as a lightweight visualization mapping.</text>
+
+  <rect class="blueFill" x="705" y="265" width="390" height="150"/>
+  <text class="txt body" x="735" y="306">Normalize the detected foot point</text>
+  <text class="math" x="735" y="350">n<tspan baseline-shift="sub" font-size="15">x</tspan> = clamp(u<tspan baseline-shift="sub" font-size="15">f</tspan> / 2000, 0, 1)</text>
+  <text class="math" x="735" y="386">n<tspan baseline-shift="sub" font-size="15">z</tspan> = clamp(v<tspan baseline-shift="sub" font-size="15">f</tspan> / 700, 0, 1)</text>
+
+  <line class="axis" x1="900" y1="438" x2="900" y2="493" marker-end="url(#arrowBlack)"/>
+
+  <rect class="greenFill" x="705" y="520" width="390" height="175"/>
+  <text class="txt body" x="735" y="562">Project to the 3D display region</text>
+  <text class="mathSmall" x="735" y="604">X = c<tspan baseline-shift="sub" font-size="13">x</tspan> + (n<tspan baseline-shift="sub" font-size="13">x</tspan> − 0.5) W<tspan baseline-shift="sub" font-size="13">d</tspan></text>
+  <text class="mathSmall" x="735" y="638">Z = c<tspan baseline-shift="sub" font-size="13">z</tspan> + (n<tspan baseline-shift="sub" font-size="13">z</tspan> − 0.5) D<tspan baseline-shift="sub" font-size="13">d</tspan></text>
+  <text class="mathSmall" x="735" y="672">Y = 0</text>
+
+  <rect class="greyFill" x="705" y="755" width="390" height="105"/>
+  <text class="txt note" x="730" y="790">Current frontend parameters</text>
+  <text class="txt note" x="730" y="820">c = (0, 0, −0.35), W<tspan baseline-shift="sub" font-size="11">d</tspan> = 7.2 m</text>
+  <text class="txt note" x="730" y="848">D<tspan baseline-shift="sub" font-size="11">d</tspan> = 3.2 m, reference floor = 26 m × 13 m</text>
+
+  <!-- Panel c -->
+  <text class="txt head" x="1290" y="181">Digital-twin world frame</text>
+  <text class="txt note" x="1290" y="211">Mapped point drives the worker model and warning marks.</text>
+
+  <polygon points="1330,610 1538,500 1665,578 1452,708" fill="#F7F8FA" stroke="#9BA3AC" stroke-width="2"/>
+  <polygon points="1405,602 1518,543 1589,586 1475,656" fill="#EAF7F1" stroke="#009E73" stroke-width="3"/>
+  <rect x="1550" y="290" width="138" height="65" fill="#ffffff" stroke="#d0d0d0" stroke-width="1.3"/>
+  <text class="txt note" x="1570" y="314">worker display</text>
+  <text class="txt note" x="1570" y="342">7.2 m × 3.2 m</text>
+  <line x1="1550" y1="355" x2="1532" y2="505" stroke="#606A73" stroke-width="1.2" fill="none"/>
+
+  <line class="grid" x1="1372" y1="588" x2="1496" y2="664"/>
+  <line class="grid" x1="1414" y1="565" x2="1538" y2="641"/>
+  <line class="grid" x1="1455" y1="543" x2="1579" y2="619"/>
+  <line class="grid" x1="1378" y1="640" x2="1586" y2="530"/>
+  <line class="grid" x1="1420" y1="666" x2="1628" y2="556"/>
+
+  <line class="axis" x1="1330" y1="610" x2="1265" y2="648" marker-end="url(#arrowBlack)"/>
+  <line class="axis" x1="1330" y1="610" x2="1445" y2="680" marker-end="url(#arrowBlack)"/>
+  <line class="axis" x1="1330" y1="610" x2="1330" y2="510" marker-end="url(#arrowBlack)"/>
+  <text class="txt body" x="1242" y="670">X</text>
+  <text class="txt body" x="1454" y="710">Z</text>
+  <text class="txt body" x="1342" y="518">Y</text>
+
+  <circle cx="1500" cy="602" r="10" fill="#D55E00"/>
+  <ellipse cx="1500" cy="602" rx="38" ry="18" fill="none" stroke="#D55E00" stroke-width="4"/>
+  <line class="orange" x1="1500" y1="600" x2="1500" y2="520" stroke-width="4"/>
+  <circle cx="1500" cy="495" r="20" fill="#fff" stroke="#D55E00" stroke-width="4"/>
+  <line class="orange" x1="1500" y1="515" x2="1500" y2="565" stroke-width="4"/>
+  <line class="orange" x1="1476" y1="543" x2="1524" y2="543" stroke-width="4"/>
+  <line class="orange" x1="1500" y1="565" x2="1476" y2="596" stroke-width="4"/>
+  <line class="orange" x1="1500" y1="565" x2="1524" y2="596" stroke-width="4"/>
+
+  <rect class="orangeFill" x="1310" y="765" width="350" height="95"/>
+  <text class="txt body" x="1335" y="802">3D target state</text>
+  <text class="mathSmall" x="1335" y="835">position = (X, 0, Z)</text>
+  <text class="txt note" x="1335" y="860">label, ground ring, camera focus</text>
+
+  <!-- inter-panel arrows -->
+  <path class="axis" d="M580,525 C610,525 620,525 645,525" marker-end="url(#arrowBlack)"/>
+  <path class="axis" d="M1155,525 C1185,525 1195,525 1220,525" marker-end="url(#arrowBlack)"/>
+
+  <text class="txt note" x="70" y="985">Note: This figure describes the current engineering visualization transform. A calibrated deployment can replace the linear normalization with homography or camera extrinsics without changing the downstream digital-twin interface.</text>
+</svg>

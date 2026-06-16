@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+alarms/*.jpg
+data/alarms.db
+data/pending/*.json
+data/reports/*.md
+.DS_Store
+*.log
