@@ -55,6 +55,7 @@ class HumanLoopTool:
         # 创建待审批工单文件
         work_order = {
             "id": pending_id,
+            "event_id": getattr(event, "event_id", ""),
             "timestamp": event.timestamp,
             "events": events_desc,
             "level": "A",
@@ -70,9 +71,11 @@ class HumanLoopTool:
             with open(fpath, "w", encoding="utf-8") as f:
                 json.dump(work_order, f, ensure_ascii=False, indent=2)
             self._approvals[pending_id] = work_order
+        event.approval_id = pending_id
+        event.approval_status = "pending"
 
         print(f"\n{'!' * 60}")
-        print(f"[可信拦截] 🔴 A级高危事件被拦截！")
+        print(f"[可信拦截] A级高危事件被拦截！")
         print(f"  工单: {pending_id}")
         print(f"  事件: {events_desc}")
         print(f"  状态: 等待安全员审批...")
@@ -84,22 +87,19 @@ class HumanLoopTool:
     def _auto_approve(self, event, reason: str) -> str:
         """自动放行非高危事件"""
         events_desc = ", ".join(e["type"] for e in event.events)
-        print(f"[可信放行] {events_desc} → {reason}")
+        print(f"[可信放行] {events_desc} -> {reason}")
         return reason
 
     def _approve(self, pending_id_or_event) -> str:
         """安全员审批通过"""
         pid = pending_id_or_event if isinstance(pending_id_or_event, str) else ""
         with self._lock:
-            if pid in self._approvals:
-                self._approvals[pid]["status"] = "approved"
-                fpath = os.path.join(self.pending_dir, f"{pid}.json")
-                if os.path.exists(fpath):
-                    with open(fpath, "r+", encoding="utf-8") as f:
-                        data = json.load(f)
-                        data["status"] = "approved"
-                        f.seek(0)
-                        json.dump(data, f, ensure_ascii=False, indent=2)
+            data = self._load_order(pid)
+            if data:
+                data["status"] = "approved"
+                data["approved_at"] = datetime.now().isoformat()
+                self._save_order(pid, data)
+                self._approvals[pid] = data
                 return f"工单 {pid} 已审批通过，执行高危处置指令"
         return f"工单 {pid} 未找到或已过期"
 
@@ -107,17 +107,30 @@ class HumanLoopTool:
         """安全员驳回"""
         pid = pending_id_or_event if isinstance(pending_id_or_event, str) else ""
         with self._lock:
-            if pid in self._approvals:
-                self._approvals[pid]["status"] = "rejected"
-                fpath = os.path.join(self.pending_dir, f"{pid}.json")
-                if os.path.exists(fpath):
-                    with open(fpath, "r+", encoding="utf-8") as f:
-                        data = json.load(f)
-                        data["status"] = "rejected"
-                        f.seek(0)
-                        json.dump(data, f, ensure_ascii=False, indent=2)
+            data = self._load_order(pid)
+            if data:
+                data["status"] = "rejected"
+                data["rejected_at"] = datetime.now().isoformat()
+                self._save_order(pid, data)
+                self._approvals[pid] = data
                 return f"工单 {pid} 已驳回，取消处置指令"
         return f"工单 {pid} 未找到或已过期"
+
+    def _load_order(self, pid: str) -> dict:
+        if not pid:
+            return {}
+        if pid in self._approvals:
+            return dict(self._approvals[pid])
+        fpath = os.path.join(self.pending_dir, f"{pid}.json")
+        if not os.path.exists(fpath):
+            return {}
+        with open(fpath, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def _save_order(self, pid: str, data: dict):
+        fpath = os.path.join(self.pending_dir, f"{pid}.json")
+        with open(fpath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
     def get_pending(self) -> list:
         """获取所有待审批工单"""

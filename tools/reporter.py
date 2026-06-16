@@ -46,7 +46,9 @@ class ReporterTool:
         content = f"""# 工厂安全事件报告
 
 **时间**: {event.timestamp}
+**事件ID**: {getattr(event, 'event_id', '') or '无'}
 **等级**: {("A" if any(e.get('level')=='A' for e in event.events) else ("B" if any(e.get('level')=='B' for e in event.events) else "C"))}级
+**审批工单**: {getattr(event, 'approval_id', '') or '无'}
 
 ## 检测事件
 {events_md}

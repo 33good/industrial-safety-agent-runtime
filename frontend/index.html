@@ -1469,6 +1469,8 @@ const flowSteps=[...document.querySelectorAll('.flow-step')];
 const flowArrows=[...document.querySelectorAll('.flow-arr')];
 let ws,total=0,crit=0,first=true,lastImageUrl='',trendChart,isFocusing=false;
 const WS_URL=`ws://${window.location.hostname||'localhost'}:5001`;
+const API_URL=`http://${window.location.hostname||'localhost'}:5000`;
+const processedEventIds=new Set();
 
 function setFlowState(stage='edge'){
   const idx={cam:0,edge:1,llm:2,decision:3}[stage]??1;
@@ -1556,29 +1558,49 @@ function speak(text){
   }catch(e){}
 }
 function _hasIntercepted(actions){return actions&&actions.some(a=>a.tool==='human_loop'&&String(a.result||'').includes('拦截'))}
-function _showApprovalCard(){
+function _showApprovalCard(approvalId='',eventId=''){
   setFlowState('decision');
   const card=document.createElement('div');
   card.className='card A';
+  card.dataset.approvalId=approvalId||'';
+  card.dataset.eventId=eventId||'';
   card.innerHTML=`<div class="t"><span>A级高危事件 · 待安全员审批</span><span class="b A">A 级</span></div>
     <div class="d">系统已拦截自动关停指令</div>
     <div style="display:flex;gap:12px;margin-top:12px">
       <button type="button" class="cyber-btn reject">驳回指令</button>
       <button type="button" class="cyber-btn auth">授权执行</button>
     </div>`;
-  card.querySelectorAll('button')[0].onclick=()=>{card.remove();setFlowState('edge')};
-  card.querySelectorAll('button')[1].onclick=()=>{
+  const submitApproval=async(action)=>{
+    if(!approvalId){
+      return {status:'local',result:'未收到审批工单编号，仅更新前端状态'};
+    }
+    const resp=await fetch(`${API_URL}/approval/${action}`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({approval_id:approvalId,event_id:eventId})
+    });
+    return resp.json();
+  };
+  card.querySelectorAll('button')[0].onclick=async()=>{
+    const result=await submitApproval('reject');
+    card.innerHTML=`<div style="color:var(--red);border-left:3px solid var(--red);padding:8px 8px 8px 10px;font-weight:700;background:rgba(255,92,101,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
+      [REJECTED] ${escapeHtml(result.result||'处置指令已驳回')}
+    </div>`;
+    setTimeout(()=>{card.remove();setFlowState('edge')},2600);
+  };
+  card.querySelectorAll('button')[1].onclick=async()=>{
     card.innerHTML=`<div style="font-family:'Consolas','DIN Alternate',monospace;font-size:11px;color:var(--cyan);line-height:1.6;letter-spacing:.4px">
       &gt; INIT SAFETY OVERRIDE... [OK]<br>
-      &gt; DISPATCH EDGE_COMMAND TO EDGE_NODE_01...<br>
+      &gt; SUBMIT HUMAN_APPROVAL TO BACKEND...<br>
       <span style="color:var(--amber);animation:cursor-blink .5s infinite">WAITING EDGE ACK...</span>
     </div>`;
+    const result=await submitApproval('approve');
     setTimeout(()=>{
       card.innerHTML=`<div style="color:var(--green);border-left:3px solid var(--green);padding:8px 8px 8px 10px;font-weight:700;background:rgba(120,208,141,.1);font-family:'DIN Alternate','Consolas',monospace;letter-spacing:1px">
-        [ACK] 声光报警联动指令已确认
+        [ACK] ${escapeHtml(result.result||'审批通过，处置指令已确认')}
       </div>`;
       setTimeout(()=>{card.remove();setFlowState('edge')},3000);
-    },1200);
+    },500);
   };
   listEl.prepend(card);
 }
@@ -1799,11 +1821,32 @@ function addAlarm(data,ev){
   updateTrend();
 }
 
-function handleMessage(raw){
+function eventKeyForData(data){
+  return data.event_id||`${data.timestamp||''}:${(data.events||[]).map(e=>e.type).join('|')}`;
+}
+function renderEventData(data){
+  if(!data.events?.length)return;
+  const key=eventKeyForData(data);
+  if(key&&processedEventIds.has(key))return;
+  if(key)processedEventIds.add(key);
   if(first){listEl.innerHTML='';first=false}
-  const data=JSON.parse(raw);
+  if(data.image_url&&data.image_url!==lastImageUrl){
+    lastImageUrl=data.image_url;
+    camImg.src=data.image_url;
+  }
+  data.events.forEach(ev=>addAlarm(data,ev));
+}
+function handleMessage(raw){
+  const data=typeof raw==='string'?JSON.parse(raw):raw;
+  if(data.type==='approval_result'){
+    const status=data.approval_status==='approved'?'已授权执行':'已驳回指令';
+    renderLLM(`${llmTxt.textContent}\n\n【审批结果】${status}：${data.result||''}`);
+    return;
+  }
+  if(first){listEl.innerHTML='';first=false}
   if(data.type==='alarm_with_llm'){
     // 只更新 LLM，事件已在第一次广播处理过，return 防止重复计数
+    renderEventData(data);
     if(data.llm_analysis){
       setFlowState('llm');
       llmHd.textContent='Qwen2.5-VL 视觉分析';
@@ -1811,7 +1854,8 @@ function handleMessage(raw){
       const decisionDiv=_buildDecisionDiv(data.dispatch_decision);
       if(decisionDiv)llmTxt.appendChild(decisionDiv);
       if(data.actions?.length)llmTxt.appendChild(_buildActionsDiv(data.actions));
-      if(_hasIntercepted(data.actions))_showApprovalCard();
+      const approvalStatus=data.approval_status||'pending';
+      if(_hasIntercepted(data.actions)&&approvalStatus==='pending')_showApprovalCard(data.approval_id||'',data.event_id||'');
       speak((data.llm_analysis||'').split('\n')[0]?.slice(0,100)||'');
     }
     return;
@@ -1825,11 +1869,7 @@ function handleMessage(raw){
     return;
   }
   if(!data.events)return;
-  if(data.image_url&&data.image_url!==lastImageUrl){
-    lastImageUrl=data.image_url;
-    camImg.src=data.image_url;
-  }
-  data.events.forEach(ev=>addAlarm(data,ev));
+  renderEventData(data);
 }
 
 function connectWS(){
@@ -1840,6 +1880,16 @@ function connectWS(){
   ws.onmessage=e=>handleMessage(e.data);
 }
 connectWS();
+
+async function restoreRecentEvents(){
+  try{
+    const resp=await fetch(`${API_URL}/recent_alarms?limit=5`);
+    const data=await resp.json();
+    const items=[...(data.events||[])].reverse();
+    items.forEach(item=>handleMessage(item));
+  }catch(e){}
+}
+restoreRecentEvents();
 
 setInterval(()=>{
   if(latencyEl&&ws&&ws.readyState===WebSocket.OPEN){

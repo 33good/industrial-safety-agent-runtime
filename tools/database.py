@@ -20,6 +20,7 @@ class DatabaseTool:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS alarms (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT,
                     timestamp TEXT NOT NULL,
                     event_types TEXT NOT NULL,
                     level TEXT NOT NULL,
@@ -29,6 +30,8 @@ class DatabaseTool:
                     llm_recommendation TEXT,
                     dispatch_decision TEXT,
                     dispatch_actions TEXT,
+                    approval_id TEXT,
+                    approval_status TEXT,
                     image_path TEXT,
                     created_at TEXT DEFAULT (datetime('now','localtime'))
                 )
@@ -42,9 +45,12 @@ class DatabaseTool:
     def _ensure_columns(conn):
         columns = {row[1] for row in conn.execute("PRAGMA table_info(alarms)").fetchall()}
         migrations = {
+            "event_id": "ALTER TABLE alarms ADD COLUMN event_id TEXT",
             "llm_recommendation": "ALTER TABLE alarms ADD COLUMN llm_recommendation TEXT",
             "dispatch_decision": "ALTER TABLE alarms ADD COLUMN dispatch_decision TEXT",
             "dispatch_actions": "ALTER TABLE alarms ADD COLUMN dispatch_actions TEXT",
+            "approval_id": "ALTER TABLE alarms ADD COLUMN approval_id TEXT",
+            "approval_status": "ALTER TABLE alarms ADD COLUMN approval_status TEXT",
             "image_path": "ALTER TABLE alarms ADD COLUMN image_path TEXT",
         }
         for name, sql in migrations.items():
@@ -74,15 +80,18 @@ class DatabaseTool:
         dispatch_decision = json.dumps(getattr(event, "dispatch_decision", {}) or {}, ensure_ascii=False)
         dispatch_actions = json.dumps(getattr(event, "dispatch_actions", []) or [], ensure_ascii=False)
         image_path = getattr(event, "image_url", "")
+        event_id = getattr(event, "event_id", "")
+        approval_id = getattr(event, "approval_id", "")
+        approval_status = getattr(event, "approval_status", "")
 
         with self._lock, sqlite3.connect(self.db_path) as conn:
             conn.execute(
-                "INSERT INTO alarms (timestamp, event_types, level, detail, bbox_json, llm_analysis, "
-                "llm_recommendation, dispatch_decision, dispatch_actions, image_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO alarms (event_id, timestamp, event_types, level, detail, bbox_json, llm_analysis, "
+                "llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status, image_path) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    event.timestamp, event_types, level, detail, bbox_json, event.llm_analysis,
-                    llm_recommendation, dispatch_decision, dispatch_actions, image_path
+                    event_id, event.timestamp, event_types, level, detail, bbox_json, event.llm_analysis,
+                    llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status, image_path
                 )
             )
         return f"已存入数据库 (total={self.count()})"

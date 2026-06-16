@@ -14,6 +14,7 @@ class AlarmEvent:
     """标准化报警事件"""
     timestamp: str
     events: list  # [{"type":"未戴安全帽", "level":"B", "bbox":{...}, "detail":"..."}]
+    event_id: str = ""
     raw_json: dict = field(default_factory=dict)
     image_bytes: bytes = b""
     image_url: str = ""
@@ -21,6 +22,8 @@ class AlarmEvent:
     llm_recommendation: dict = field(default_factory=dict)
     dispatch_decision: dict = field(default_factory=dict)
     dispatch_actions: list = field(default_factory=list)
+    approval_id: str = ""
+    approval_status: str = "auto"
 
 
 class BaseAgent:

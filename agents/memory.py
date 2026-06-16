@@ -29,6 +29,7 @@ class MemoryModule:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS alarms (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT,
                     timestamp TEXT NOT NULL,
                     event_types TEXT NOT NULL,
                     level TEXT NOT NULL,
@@ -38,15 +39,19 @@ class MemoryModule:
                     llm_recommendation TEXT,
                     dispatch_decision TEXT,
                     dispatch_actions TEXT,
+                    approval_id TEXT,
                     approval_status TEXT DEFAULT 'auto',
                     created_at TEXT DEFAULT (datetime('now','localtime'))
                 )
             """)
             columns = {row[1] for row in conn.execute("PRAGMA table_info(alarms)").fetchall()}
             migrations = {
+                "event_id": "ALTER TABLE alarms ADD COLUMN event_id TEXT",
                 "llm_recommendation": "ALTER TABLE alarms ADD COLUMN llm_recommendation TEXT",
                 "dispatch_decision": "ALTER TABLE alarms ADD COLUMN dispatch_decision TEXT",
                 "dispatch_actions": "ALTER TABLE alarms ADD COLUMN dispatch_actions TEXT",
+                "approval_id": "ALTER TABLE alarms ADD COLUMN approval_id TEXT",
+                "approval_status": "ALTER TABLE alarms ADD COLUMN approval_status TEXT DEFAULT 'auto'",
             }
             for name, sql in migrations.items():
                 if name not in columns:
