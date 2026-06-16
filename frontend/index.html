@@ -490,6 +490,30 @@ button{font:inherit}
 .b.B{color:var(--amber);background:rgba(255,183,74,.16)}
 .card .d{margin-top:5px;color:rgba(232,244,239,.62);font-size:11px;line-height:1.45}
 .card .m{margin-top:5px;color:rgba(232,244,239,.35);font-size:10px;font-variant-numeric:tabular-nums}
+.evidence-shot{
+  position:relative;
+  margin-top:9px;
+  height:104px;
+  background:rgba(0,0,0,.24);
+  border:1px solid rgba(255,255,255,.06);
+  overflow:hidden;
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);
+}
+.evidence-shot img{width:100%;height:100%;object-fit:contain;display:block}
+.evidence-shot::before{
+  content:"EVIDENCE";
+  position:absolute;
+  left:0;
+  top:0;
+  z-index:1;
+  padding:3px 7px;
+  color:rgba(232,244,239,.78);
+  background:rgba(5,8,8,.82);
+  border-left:2px solid var(--amber);
+  font-family:"DIN Alternate","Consolas",monospace;
+  font-size:9px;
+  letter-spacing:1.4px;
+}
 .card .meta{
   display:grid;
   grid-template-columns:repeat(2,1fr);
@@ -1690,6 +1714,7 @@ const API_URL=`http://${window.location.hostname||'localhost'}:5000`;
 const CAMERA_STREAM_URL=`${API_URL}/camera/stream`;
 const processedEventIds=new Set();
 const shownApprovalIds=new Set();
+const shownEvidenceIds=new Set();
 const eventTargetMap=new Map();
 let trustState={};
 camImg.src=CAMERA_STREAM_URL;
@@ -1805,6 +1830,10 @@ function setHealthItem(el,value,state='ok'){
   const strong=el.querySelector('strong');
   if(strong)strong.textContent=value;
 }
+function setHealthHint(el,text){
+  const span=el?.querySelector('span');
+  if(span)span.textContent=text;
+}
 async function refreshHealth(){
   try{
     const resp=await fetch(`${API_URL}/health`,{cache:'no-store'});
@@ -1818,6 +1847,7 @@ async function refreshHealth(){
     setHealthItem(healthEls.api,'OK','ok');
     setHealthItem(healthEls.ws,String(wsInfo.clients??0),(ws&&ws.readyState===WebSocket.OPEN)?'ok':'warn');
     setHealthItem(healthEls.camera,camera.status==='online'?`${camera.fps||0} FPS`:'OFF',camera.status==='online'?'ok':'bad');
+    setHealthHint(healthEls.camera,camera.status==='online'?`${camera.stream||'RTSP'} · ${_timeShort(camera.last_frame_at)} · R${camera.reconnects??0}`:'实时视频');
     setHealthItem(healthEls.db,`${db.today??0}/${db.total??0}`,'ok');
     setHealthItem(healthEls.approval,String(approval.pending??0),(approval.pending??0)>0?'warn':'ok');
     if(healthEls.updated)healthEls.updated.textContent=_timeShort(data.timestamp);
@@ -1825,6 +1855,7 @@ async function refreshHealth(){
     setHealthItem(healthEls.api,'DOWN','bad');
     setHealthItem(healthEls.ws,'--','bad');
     setHealthItem(healthEls.camera,'--','bad');
+    setHealthHint(healthEls.camera,'实时视频');
     if(healthEls.updated)healthEls.updated.textContent='OFFLINE';
   }
 }
@@ -2188,9 +2219,14 @@ function addAlarm(data,ev){
   const confRaw=Number(ev.confidence??ev.score??ev.conf??(.86+Math.random()*.09));
   const confidence=Math.max(0,Math.min(1,confRaw));
   const statusText=level==='A'?'待审批':level==='B'?'已拦截':'跟踪中';
+  const evidenceKey=data.event_id||data.image_url||'';
+  const showEvidence=Boolean(data.image_url)&&!shownEvidenceIds.has(evidenceKey);
+  if(showEvidence)shownEvidenceIds.add(evidenceKey);
+  const evidenceHtml=showEvidence?`<div class="evidence-shot"><img src="${escapeHtml(data.image_url)}" alt="报警证据截图" loading="lazy"></div>`:'';
   const card=document.createElement('div');
   card.className=`card ${level}`;
   card.innerHTML=`<div class="t"><span>${eventType}</span><span class="b ${level}">${escapeHtml(level)} 级</span></div><div class="d">${eventDetail}</div>
+    ${evidenceHtml}
     <div class="meta"><span>目标 <strong>${escapeHtml(targetId)}</strong></span><span>相机 <strong>${camId}</strong></span><span>置信 <strong>${Math.round(confidence*100)}%</strong></span><span>状态 <strong>${statusText}</strong></span></div>
     <div class="m">${eventTime}</div>`;
   listEl.prepend(card);
