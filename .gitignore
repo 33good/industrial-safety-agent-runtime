@@ -8,6 +8,3 @@ data/
 figures/
 *.docx
 # 本地配置文件（含密钥/Token/IP）
-backend.py
-setup_box.py
-start.bat
