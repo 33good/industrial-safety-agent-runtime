@@ -1,9 +1,13 @@
 __pycache__/
 *.pyc
 *.pyo
-alarms/*.jpg
-data/alarms.db
-data/pending/*.json
-data/reports/*.md
+alarms/
+data/
 .DS_Store
 *.log
+figures/
+*.docx
+# 本地配置文件（含密钥/Token/IP）
+backend.py
+setup_box.py
+start.bat
