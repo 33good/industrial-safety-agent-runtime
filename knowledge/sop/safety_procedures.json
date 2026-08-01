@@ -1,0 +1,71 @@
+{
+  "catalog_version": "2026.08-demo.1",
+  "description": "项目评测用工业安全规程摘录，不替代企业正式制度或法律法规。",
+  "documents": [
+    {
+      "document_id": "PPE-001",
+      "title": "个人防护装备检查规程",
+      "section": "4.2-helmet",
+      "version": "1.2",
+      "effective_date": "2026-07-01",
+      "source": "项目评测规程/PPE-001",
+      "active": true,
+      "event_types": ["未戴安全帽"],
+      "risk_levels": ["B"],
+      "keywords": ["安全帽", "头部防护", "未佩戴"],
+      "content": "进入规定作业区域前必须正确佩戴安全帽。发现未佩戴时，应记录事件并通知现场负责人纠正；在完成纠正前不得进入要求佩戴安全帽的作业区。"
+    },
+    {
+      "document_id": "PPE-001",
+      "title": "个人防护装备检查规程",
+      "section": "4.3-vest",
+      "version": "1.2",
+      "effective_date": "2026-07-01",
+      "source": "项目评测规程/PPE-001",
+      "active": true,
+      "event_types": ["未穿反光背心"],
+      "risk_levels": ["B"],
+      "keywords": ["反光背心", "可视性", "未穿"],
+      "content": "人员进入车辆运行或装卸区域时应穿着反光背心。发现未穿着时，应留存证据并通知现场负责人及时纠正。"
+    },
+    {
+      "document_id": "TRAFFIC-002",
+      "title": "厂内人车分流与车辆通道规程",
+      "section": "5.1-separation",
+      "version": "2.0",
+      "effective_date": "2026-07-01",
+      "source": "项目评测规程/TRAFFIC-002",
+      "active": true,
+      "event_types": ["人车混行风险", "区域入侵-车辆通道"],
+      "risk_levels": ["A"],
+      "keywords": ["人车混行", "车辆通道", "区域入侵", "碰撞风险"],
+      "content": "人员侵入车辆专用通道或与运行车辆形成近距离冲突时，应立即发出高优先级警示并保持现场隔离。涉及设备停机或通道封锁的动作必须由授权人员确认后执行。"
+    },
+    {
+      "document_id": "TRAFFIC-002",
+      "title": "厂内人车分流与车辆通道规程",
+      "section": "3.4-vehicle-monitoring",
+      "version": "2.0",
+      "effective_date": "2026-07-01",
+      "source": "项目评测规程/TRAFFIC-002",
+      "active": true,
+      "event_types": ["车辆检测"],
+      "risk_levels": ["C"],
+      "keywords": ["车辆检测", "车辆提示"],
+      "content": "仅检测到车辆且未发现人员接近、越界或其他冲突证据时，按一般运行事件记录，不得据此推断已经发生碰撞风险。"
+    },
+    {
+      "document_id": "FIRE-003",
+      "title": "初起火情识别与报告规程",
+      "section": "6.1-initial-response",
+      "version": "1.1",
+      "effective_date": "2026-07-01",
+      "source": "项目评测规程/FIRE-003",
+      "active": true,
+      "event_types": ["火焰检测"],
+      "risk_levels": ["A"],
+      "keywords": ["火焰", "火情", "着火"],
+      "content": "确认存在火焰证据时，应立即生成高优先级告警、保存现场证据并通知安全负责人。任何联动停机或现场处置指令必须经过授权人员确认。"
+    }
+  ]
+}

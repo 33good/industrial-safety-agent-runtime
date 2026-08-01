@@ -27,20 +27,37 @@ class PerceptionAgent(BaseAgent):
     def __init__(self):
         super().__init__("感知Agent")
 
-    def process(self, alarm_body: dict, img_bytes: bytes = b"") -> AlarmEvent:
+    @staticmethod
+    def _confidence(obj: dict) -> float:
+        """Normalize detector confidence to 0..1 for every input adapter."""
+        try:
+            raw = float(obj.get("confidence", 0))
+        except (TypeError, ValueError):
+            return 0.0
+        if raw > 100:
+            raw /= 1000.0
+        elif raw > 1:
+            raw /= 100.0
+        return max(0.0, min(1.0, raw))
+
+    def process(self, alarm_body: dict, img_bytes: bytes = b"", verbose: bool = True) -> AlarmEvent:
         obj_list = alarm_body.get("objInfo", [])
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        events = self._analyze_frame(obj_list)
+        risk_box = alarm_body.get("riskBox")
+        focus_level = str(alarm_body.get("focusLevel") or "").upper()
+        events = self._analyze_frame(obj_list, risk_box, focus_level)
 
-        # 打印检测目标坐标
-        for obj in obj_list:
-            tn = self.TYPE_NAMES.get(obj.get("targetType", -1), "?")
-            r = obj.get("posRect", {})
-            self.log(f"  检测: {tn} | x={r.get('x',0):.0f} y={r.get('y',0):.0f} w={r.get('width',0):.0f} h={r.get('height',0):.0f}")
-        self.log(f"收到 {len(obj_list)} 个目标 → {len(events)} 个违规事件")
-        for e in events:
-            self.log(f"  {e['type']}({e['level']}级) | {e['detail']}")
+        if verbose:
+            # External callbacks and demo replay keep detailed logs. Local video inference
+            # runs several times per second, so it logs only after an event is stabilized.
+            for obj in obj_list:
+                tn = self.TYPE_NAMES.get(obj.get("targetType", -1), "?")
+                r = obj.get("posRect", {})
+                self.log(f"  检测: {tn} | x={r.get('x',0):.0f} y={r.get('y',0):.0f} w={r.get('width',0):.0f} h={r.get('height',0):.0f}")
+            self.log(f"收到 {len(obj_list)} 个目标 → {len(events)} 个违规事件")
+            for e in events:
+                self.log(f"  {e['type']}({e['level']}级) | {e['detail']}")
 
         return AlarmEvent(
             timestamp=timestamp,
@@ -60,7 +77,7 @@ class PerceptionAgent(BaseAgent):
                 inside = not inside
         return inside
 
-    def _analyze_frame(self, obj_list: list) -> list:
+    def _analyze_frame(self, obj_list: list, risk_box: dict | None = None, focus_level: str = "") -> list:
         persons = [o for o in obj_list if o["targetType"] == 0]
         helmets = [o for o in obj_list if o["targetType"] == 1]
         vests   = [o for o in obj_list if o["targetType"] == 2]
@@ -71,22 +88,43 @@ class PerceptionAgent(BaseAgent):
         # -- 基础违规：安全帽/背心 --
         for person in persons:
             rect = person["posRect"]
-            conf = person["confidence"] / 10.0
+            confidence = self._confidence(person)
+            conf = confidence * 100
             tid = person.get("targetId", 0)
             cx = rect["x"] + rect["width"] / 2
             cy = rect["y"] + rect["height"] / 2
 
             has_helmet = any(self._in_upper_half(rect, h["posRect"]) for h in helmets)
             has_vest   = any(self._overlap_area(rect, v["posRect"]) > 0.3 for v in vests)
+            ppe_status = person.get("ppeStatus") or {}
+            helmet_state = (ppe_status.get("helmet") or {}).get("status", "")
+            vest_state = (ppe_status.get("vest") or {}).get("status", "")
 
-            if not has_helmet:
+            # Detector adapters may supply an explicit, temporally stabilized PPE state.
+            # Other detector sources keep the original box-association behavior.
+            if helmet_state in {"missing", "improper"}:
+                ppe_conf = float((ppe_status.get("helmet") or {}).get("confidence", confidence))
+                label = "安全帽佩戴不规范" if helmet_state == "improper" else "未戴安全帽"
+                detail = "人员安全帽佩戴不规范" if helmet_state == "improper" else "人员未佩戴安全帽"
+                events.append({"type": label, "level": "B",
+                               "detail": f"{detail}，确认置信度 {ppe_conf * 100:.1f}%",
+                               "bbox": rect, "targetId": tid, "confidence": ppe_conf})
+            elif not helmet_state and not has_helmet:
                 events.append({"type": "未戴安全帽", "level": "B",
                                "detail": f"人员未佩戴安全帽，置信度 {conf:.1f}%",
-                               "bbox": rect, "targetId": tid})
-            if not has_vest:
+                               "bbox": rect, "targetId": tid, "confidence": confidence})
+
+            if vest_state in {"missing", "improper"}:
+                ppe_conf = float((ppe_status.get("vest") or {}).get("confidence", confidence))
+                label = "反光背心穿戴不规范" if vest_state == "improper" else "未穿反光背心"
+                detail = "人员反光背心穿戴不规范" if vest_state == "improper" else "人员未穿反光背心"
+                events.append({"type": label, "level": "B",
+                               "detail": f"{detail}，确认置信度 {ppe_conf * 100:.1f}%",
+                               "bbox": rect, "targetId": tid, "confidence": ppe_conf})
+            elif not vest_state and not has_vest:
                 events.append({"type": "未穿反光背心", "level": "B",
                                "detail": f"人员未穿反光背心，置信度 {conf:.1f}%",
-                               "bbox": rect, "targetId": tid})
+                               "bbox": rect, "targetId": tid, "confidence": confidence})
 
             # -- 区域入侵检测 --
             for zone in self.DANGER_ZONES:
@@ -94,7 +132,10 @@ class PerceptionAgent(BaseAgent):
                     events.append({
                         "type": f"区域入侵-{zone['name']}", "level": zone["level"],
                         "detail": f"人员进入{zone['name']}，置信度 {conf:.1f}%",
-                        "bbox": rect, "targetId": tid
+                        "bbox": risk_box if zone["level"] == "A" and risk_box else rect,
+                        "person_bbox": rect,
+                        "targetId": tid,
+                        "confidence": confidence,
                     })
                     break  # 只报最严重的那个区域
 
@@ -112,22 +153,31 @@ class PerceptionAgent(BaseAgent):
                     events.append({
                         "type": "人车混行风险", "level": "A",
                         "detail": f"人员与车辆距离 {dist:.0f}px，存在碰撞风险",
-                        "bbox": prect,
-                        "targetId": person.get("targetId", 0)
+                        "bbox": risk_box if risk_box else prect,
+                        "person_bbox": prect,
+                        "vehicle_bbox": brect,
+                        "vehicle_targetId": bike.get("targetId", 0),
+                        "targetId": person.get("targetId", 0),
+                        "confidence": min(self._confidence(person), self._confidence(bike)),
                     })
                     break  # 每人只报一次
 
         # -- 火焰 --
         for f in fires:
-            conf = f["confidence"] / 10.0
+            confidence = self._confidence(f)
+            conf = confidence * 100
             events.append({"type": "火焰检测", "level": "A",
-                           "detail": f"检测到火焰，置信度 {conf:.1f}%", "bbox": f["posRect"]})
+                           "detail": f"检测到火焰，置信度 {conf:.1f}%", "bbox": f["posRect"],
+                           "confidence": confidence})
 
         # -- 车辆 --
-        for b in bikes:
-            conf = b["confidence"] / 10.0
-            events.append({"type": "车辆检测", "level": "C",
-                           "detail": f"检测到车辆，置信度 {conf:.1f}%", "bbox": b["posRect"]})
+        if focus_level != "A":
+            for b in bikes:
+                confidence = self._confidence(b)
+                conf = confidence * 100
+                events.append({"type": "车辆检测", "level": "C",
+                               "detail": f"检测到车辆，置信度 {conf:.1f}%", "bbox": b["posRect"],
+                               "confidence": confidence})
 
         # -- 复合风险：同一人的多种违规合并升级 --
         self._compound_risk(events)
@@ -147,17 +197,20 @@ class PerceptionAgent(BaseAgent):
             types = [e["type"] for e in evs]
             # 未戴安全帽 + 区域入侵A级 → 升级为复合高危
             if "未戴安全帽" in types and any("区域入侵" in t for t in types):
+                high_risk_bbox = next((e["bbox"] for e in evs if e.get("level") == "A"), evs[0]["bbox"])
                 evs.append({
                     "type": "复合风险-高危", "level": "A",
                     "detail": "人员未佩戴安全帽且进入危险区域，复合风险升级为A级",
-                    "bbox": evs[0]["bbox"], "targetId": tid
+                    "bbox": high_risk_bbox, "targetId": tid,
+                    "confidence": min((e.get("confidence", 0) for e in evs), default=0),
                 })
             # 未戴安全帽 + 未穿背心 → 复合违规
             if "未戴安全帽" in types and "未穿反光背心" in types:
                 evs.append({
                     "type": "复合违规-双重缺失", "level": "B",
                     "detail": "人员同时未佩戴安全帽和反光背心",
-                    "bbox": evs[0]["bbox"], "targetId": tid
+                    "bbox": evs[0]["bbox"], "targetId": tid,
+                    "confidence": min((e.get("confidence", 0) for e in evs), default=0),
                 })
 
     @staticmethod

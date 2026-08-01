@@ -6,6 +6,7 @@ import sqlite3
 import json
 import os
 import threading
+from contextlib import contextmanager
 from datetime import datetime
 
 
@@ -23,13 +24,24 @@ class MemoryModule:
         self._lock = threading.Lock()
         self._ensure_db()
 
+    @contextmanager
+    def _connection(self):
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
     def _ensure_db(self):
         """确保数据库和表存在"""
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS alarms (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     event_id TEXT,
+                    run_id TEXT,
+                    trace_id TEXT,
                     timestamp TEXT NOT NULL,
                     event_types TEXT NOT NULL,
                     level TEXT NOT NULL,
@@ -49,6 +61,8 @@ class MemoryModule:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(alarms)").fetchall()}
             migrations = {
                 "event_id": "ALTER TABLE alarms ADD COLUMN event_id TEXT",
+                "run_id": "ALTER TABLE alarms ADD COLUMN run_id TEXT",
+                "trace_id": "ALTER TABLE alarms ADD COLUMN trace_id TEXT",
                 "llm_recommendation": "ALTER TABLE alarms ADD COLUMN llm_recommendation TEXT",
                 "dispatch_decision": "ALTER TABLE alarms ADD COLUMN dispatch_decision TEXT",
                 "dispatch_actions": "ALTER TABLE alarms ADD COLUMN dispatch_actions TEXT",
@@ -69,7 +83,7 @@ class MemoryModule:
         zone = self._bbox_zone(bbox)
         now = datetime.now()
 
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             conn.row_factory = sqlite3.Row
 
             # 1. 最近 N 分钟所有报警

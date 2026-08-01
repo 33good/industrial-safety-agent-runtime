@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 *.pyo
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
 alarms/
 data/
 .DS_Store
@@ -8,3 +12,15 @@ data/
 figures/
 *.docx
 # 本地配置文件（含密钥/Token/IP）
+.env
+models/*.pt
+models/*.onnx
+models/*.engine
+runtime/
+logs/
+/main.tex
+/Agent设计与答辩手册.md
+*.aux
+*.fdb_latexmk
+*.fls
+*.synctex.gz

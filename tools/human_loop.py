@@ -59,6 +59,8 @@ class HumanLoopTool:
         work_order = {
             "id": pending_id,
             "event_id": getattr(event, "event_id", ""),
+            "run_id": getattr(event, "run_id", ""),
+            "trace_id": getattr(event, "trace_id", ""),
             "timestamp": event.timestamp,
             "events": events_desc,
             "level": "A",

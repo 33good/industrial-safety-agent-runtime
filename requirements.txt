@@ -1,0 +1,7 @@
+# Application dependencies. Install a CUDA-compatible PyTorch build separately
+# when GPU inference is required; see README.md.
+numpy>=1.26,<3
+Pillow>=10,<13
+opencv-python>=4.10,<5
+websockets>=12,<17
+ultralytics>=8.4,<9

@@ -19,6 +19,7 @@ class CameraStreamWorker:
         self.jpeg_quality = jpeg_quality
         self.reconnect_seconds = reconnect_seconds
         self._lock = threading.Lock()
+        self._latest_frame = None
         self._latest_jpeg = b""
         self._latest_at = 0.0
         self._fps = 0.0
@@ -27,6 +28,7 @@ class CameraStreamWorker:
         self._started = False
         self._reconnects = 0
         self._frames_total = 0
+        self._frame_size = (0, 0)
         self._stream_label = self._infer_stream_label(rtsp_url)
         self._stop = threading.Event()
 
@@ -88,12 +90,15 @@ class CameraStreamWorker:
                     else:
                         fps = self._fps
                     with self._lock:
+                        # Keep the decoded frame for local inference. Consumers receive a copy.
+                        self._latest_frame = frame
                         self._latest_jpeg = encoded.tobytes()
                         self._latest_at = now
                         self._fps = fps
                         self._online = True
                         self._error = ""
                         self._frames_total += 1
+                        self._frame_size = (int(frame.shape[1]), int(frame.shape[0]))
             except Exception as e:
                 with self._lock:
                     self._online = False
@@ -111,6 +116,13 @@ class CameraStreamWorker:
         with self._lock:
             return self._latest_jpeg
 
+    def latest_frame_snapshot(self):
+        """Return the newest decoded frame without opening a second RTSP connection."""
+        with self._lock:
+            if self._latest_frame is None:
+                return None, b"", self._frames_total
+            return self._latest_frame.copy(), self._latest_jpeg, self._frames_total
+
     def status(self) -> dict:
         with self._lock:
             age = time.time() - self._latest_at if self._latest_at else None
@@ -124,6 +136,7 @@ class CameraStreamWorker:
                 "error": self._error,
                 "reconnects": self._reconnects,
                 "frames_total": self._frames_total,
+                "resolution": {"width": self._frame_size[0], "height": self._frame_size[1]},
                 "stream": self._stream_label,
                 "configured": bool(self.rtsp_url),
             }

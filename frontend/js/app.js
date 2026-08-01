@@ -151,6 +151,7 @@ manager.onLoad=()=>{if(loaderEl){loaderEl.style.opacity='0';loaderEl.style.point
 manager.onError=url=>console.warn('[3D] 资源加载失败:',url);
 const gltfLoader=new GLTFLoader(manager);
 const workerModels={};
+const vehicleModels={};
 
 gltfLoader.load('construction_worker_in_safety_gear.glb',gltf=>{
   workerModels.safety=prepareWorker(gltf.scene);
@@ -161,6 +162,11 @@ gltfLoader.load('construction_worker_in_high-visibility_vest.glb',gltf=>{
   console.log('[3D] 反光背心工人已加载');
 });
 
+gltfLoader.load('forklift_truck.glb',gltf=>{
+  vehicleModels.forklift=prepareVehicleModel(gltf.scene);
+  console.log('[3D] 叉车模型已加载');
+},undefined,()=>console.log('[3D] 叉车模型加载失败，使用程序化车辆兜底'));
+
 function prepareWorker(root){
   root.traverse(c=>{
     if(c.isMesh){
@@ -168,6 +174,16 @@ function prepareWorker(root){
       c.receiveShadow=true;
       c.frustumCulled=true;
     }
+  });
+  return root;
+}
+
+function prepareVehicleModel(root){
+  root.traverse(c=>{
+    if(!c.isMesh)return;
+    c.castShadow=false;
+    c.receiveShadow=false;
+    c.frustumCulled=false;
   });
   return root;
 }
@@ -244,6 +260,8 @@ function createFallbackHuman(color=0x62f3dd,violations=[]){
 
 const humans=[],labelGroups=[],groundRings=[];
 const trackedHumans={};
+const vehicles=[];
+const trackedVehicles={};
 const HUMAN_STALE_AFTER=30000;
 const HUMAN_TRACK_TTL=120000;
 const HUMAN_FADE_DURATION=4500;
@@ -468,10 +486,18 @@ function createHuman(pos, violations, stateColor=0x62f3dd,rotationY=0){
 
   if(src){
     const clone=src.clone(true);
-    clone.scale.set(2.35,2.35,2.35);
+    const sourceBox=new THREE.Box3().setFromObject(clone);
+    const sourceSize=sourceBox.getSize(new THREE.Vector3());
+    const targetHeight=3.15;
+    const normalizedScale=targetHeight/Math.max(sourceSize.y,.001);
+    clone.scale.multiplyScalar(normalizedScale);
     const box=new THREE.Box3().setFromObject(clone);
-    clone.position.y=-box.min.y;
-    const humanHeight=Math.max(box.max.y-box.min.y,3.2);
+    clone.position.set(
+      -(box.min.x+box.max.x)/2,
+      -box.min.y,
+      -(box.min.z+box.max.z)/2
+    );
+    const humanHeight=Math.max(box.max.y-box.min.y,targetHeight);
     clone.updateWorldMatrix(true,true);
     clone.traverse(c=>{
       if(!c.isMesh)return;
@@ -489,7 +515,7 @@ function createHuman(pos, violations, stateColor=0x62f3dd,rotationY=0){
         metalness:0,
         vertexColors:true,
         transparent:true,
-        opacity:.82,
+        opacity:.94,
         blending:THREE.NormalBlending,
         depthTest:true,
         depthWrite:true
@@ -678,9 +704,11 @@ function addViolationHud(group,height,violations,stateColor){
 
 function createLabel(pos, violations, color=0x62f3dd, targetId='T-0000'){
   const texts=[];
+  if(violations.includes('proximity'))texts.push('人车混行风险');
+  if(violations.includes('intrusion'))texts.push('区域入侵');
+  if(violations.includes('fire'))texts.push('火焰风险');
   if(violations.includes('no_helmet'))texts.push('未戴安全帽');
   if(violations.includes('no_vest'))texts.push('未穿反光背心');
-  if(violations.includes('fire'))texts.push('火焰');
   const div=document.createElement('div');
   div.className='label3d';
   const rC=(color>>16)&255;
@@ -732,6 +760,143 @@ function createGroundRing(pos,color){
   return ring;
 }
 
+function addVehicleSignal(group,color){
+  // Keep only a compact locator above the vehicle. The previous translucent
+  // cuboid obscured the forklift silhouette and looked like an extra red box.
+  const markerMat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.86,blending:THREE.AdditiveBlending,depthWrite:false});
+  markerMat.userData={tracksState:true,signalMaterial:true,baseOpacity:.86};
+  const marker=new THREE.Mesh(new THREE.ConeGeometry(.24,.58,4),markerMat);
+  marker.position.y=2.34;
+  marker.rotation.y=Math.PI/4;
+  marker.userData={isVehicleMarker:true,baseY:2.34,pulseSpeed:.006};
+  marker.renderOrder=8;
+  group.add(marker);
+}
+
+function createVehicle(pos,color=0x62f3dd,rotationY=0){
+  const group=new THREE.Group();
+  group.position.copy(pos);
+  group.rotation.y=rotationY;
+  const src=vehicleModels.forklift;
+  if(src){
+    const clone=src.clone(true);
+    const srcBox=new THREE.Box3().setFromObject(clone);
+    const size=srcBox.getSize(new THREE.Vector3());
+    const maxXZ=Math.max(size.x,size.z,.001);
+    const targetLength=4.25;
+    const scale=targetLength/maxXZ;
+    clone.scale.setScalar(scale);
+    const box=new THREE.Box3().setFromObject(clone);
+    clone.position.set(
+      -(box.min.x+box.max.x)/2,
+      -box.min.y,
+      -(box.min.z+box.max.z)/2
+    );
+    clone.traverse(c=>{
+      if(!c.isMesh)return;
+      c.castShadow=false;
+      c.receiveShadow=false;
+      c.frustumCulled=false;
+      c.renderOrder=3;
+      const mat=Array.isArray(c.material)?c.material.map(m=>m.clone()):c.material?.clone();
+      const mats=Array.isArray(mat)?mat:[mat].filter(Boolean);
+      for(const m of mats){
+        m.color?.setHex?.(color);
+        m.emissive?.setHex?.(color);
+        if(m.emissiveIntensity!==undefined)m.emissiveIntensity=.26;
+        m.transparent=true;
+        m.opacity=Math.max(Math.min(m.opacity??1,.96),.84);
+        m.userData={tracksState:true,baseOpacity:m.opacity};
+      }
+      if(mat)c.material=mat;
+      if(c.geometry){
+        const edges=new THREE.LineSegments(
+          new THREE.EdgesGeometry(c.geometry,35),
+          new THREE.LineBasicMaterial({color,transparent:true,opacity:.82,blending:THREE.AdditiveBlending,depthWrite:false})
+        );
+        edges.renderOrder=4;
+        c.add(edges);
+      }
+    });
+    const beacon=new THREE.Mesh(new THREE.TorusGeometry(1.18,.032,12,72),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.46,blending:THREE.AdditiveBlending,depthWrite:false}));
+    beacon.rotation.x=-Math.PI/2;
+    beacon.position.y=.08;
+    beacon.userData={isVehiclePulse:true,baseOpacity:.52};
+    group.add(clone,beacon);
+    addVehicleSignal(group,color);
+    group.userData={isVehicle:true,color,model:'forklift'};
+    scene.add(group);
+    return group;
+  }
+  const bodyMat=new THREE.MeshStandardMaterial({
+    color:0x19343a,
+    emissive:color,
+    emissiveIntensity:.08,
+    roughness:.72,
+    metalness:.2,
+    transparent:true,
+    opacity:.82
+  });
+  bodyMat.userData={tracksState:true,baseOpacity:.82};
+  const edgeMat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.48,blending:THREE.AdditiveBlending,depthWrite:false});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(2.05,.68,1.05),bodyMat);
+  body.position.y=.45;
+  const cabin=new THREE.Mesh(new THREE.BoxGeometry(.72,.86,.84),bodyMat.clone());
+  cabin.position.set(-.42,1.12,0);
+  const mast=new THREE.Mesh(new THREE.BoxGeometry(.09,1.55,.09),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.7}));
+  mast.position.set(1.02,1.05,-.44);
+  const forkMat=new THREE.MeshBasicMaterial({color,transparent:true,opacity:.68});
+  const forkA=new THREE.Mesh(new THREE.BoxGeometry(1.08,.055,.065),forkMat);
+  const forkB=forkA.clone();
+  forkA.position.set(1.48,.24,-.32);
+  forkB.position.set(1.48,.24,.32);
+  for(const wheelZ of [-.42,.42]){
+    for(const wheelX of [-.52,.5]){
+      const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.16,18),new THREE.MeshBasicMaterial({color:0x020909,transparent:true,opacity:.88}));
+      wheel.rotation.z=Math.PI/2;
+      wheel.position.set(wheelX,.2,wheelZ);
+      group.add(wheel);
+    }
+  }
+  const bodyEdges=new THREE.LineSegments(new THREE.EdgesGeometry(body.geometry),edgeMat);
+  bodyEdges.position.copy(body.position);
+  bodyEdges.renderOrder=4;
+  const beacon=new THREE.Mesh(new THREE.TorusGeometry(.92,.022,12,64),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.34,blending:THREE.AdditiveBlending,depthWrite:false}));
+  beacon.rotation.x=-Math.PI/2;
+  beacon.position.y=.08;
+  beacon.userData={isVehiclePulse:true,baseOpacity:.34};
+  group.add(body,cabin,mast,forkA,forkB,bodyEdges,beacon);
+  addVehicleSignal(group,color);
+  group.userData={isVehicle:true,color};
+  scene.add(group);
+  return group;
+}
+
+function createVehicleLabel(pos,color=0x62f3dd,targetId='V-0000'){
+  const div=document.createElement('div');
+  div.className='label3d';
+  const rC=(color>>16)&255,gC=(color>>8)&255,bC=color&255;
+  div.style.setProperty('--label-color',`rgb(${rC}, ${gC}, ${bC})`);
+  div.style.setProperty('--label-bg',`rgba(${rC}, ${gC}, ${bC}, 0.24)`);
+  div.innerHTML=`<span class="target">VEHICLE ${escapeHtml(targetId)}</span><span class="reason">车辆目标</span>`;
+  const label=new CSS2DObject(div);
+  label.position.set(0,2.78,0);
+  label.userData={created:Date.now(),lifetime:12000};
+  const group=new THREE.Group();
+  group.position.copy(pos);
+  group.add(label);
+  scene.add(group);
+  return group;
+}
+
+function removeTrackedVehicle(tid,t){
+  scene.remove(t.vehicle,t.label,t.ring);
+  const vi=vehicles.indexOf(t.vehicle);if(vi>=0)vehicles.splice(vi,1);
+  const li=labelGroups.indexOf(t.label);if(li>=0)labelGroups.splice(li,1);
+  const ri=groundRings.indexOf(t.ring);if(ri>=0)groundRings.splice(ri,1);
+  delete trackedVehicles[tid];
+}
+
 function createHumanTrail(from,to,color){
   if(!from||from.distanceTo(to)<.08)return;
   const points=[
@@ -764,6 +929,96 @@ function moveTrackedVisual(t,pos,color,rotationY=t.human.rotation.y){
   new TWEEN.Tween(t.ring.position).to({x:pos.x,y:.08,z:pos.z},620).easing(TWEEN.Easing.Cubic.Out).start();
 }
 
+function moveTrackedVehicle(t,pos,color,rotationY=t.vehicle.rotation.y){
+  const prev=t.vehicle.position.clone();
+  createHumanTrail(prev,pos,color);
+  new TWEEN.Tween(t.vehicle.position).to({x:pos.x,y:pos.y,z:pos.z},620).easing(TWEEN.Easing.Cubic.Out).start();
+  new TWEEN.Tween(t.vehicle.rotation).to({y:rotationY},620).easing(TWEEN.Easing.Cubic.Out).start();
+  new TWEEN.Tween(t.label.position).to({x:pos.x,y:pos.y,z:pos.z},620).easing(TWEEN.Easing.Cubic.Out).start();
+  new TWEEN.Tween(t.ring.position).to({x:pos.x,y:.08,z:pos.z},620).easing(TWEEN.Easing.Cubic.Out).start();
+  recolorHumanSignal(t.vehicle,color);
+}
+
+function upsertVehicleTarget(tid,pos,color,rotationY,targetId,level='C'){
+  const existingVehicle=trackedVehicles[tid];
+  if(existingVehicle){
+    moveTrackedVehicle(existingVehicle,pos,color,rotationY);
+    if(existingVehicle.ring.material){
+      existingVehicle.ring.material.color?.setHex(color);
+      existingVehicle.ring.material.opacity=.32;
+    }
+    existingVehicle.lastSeen=Date.now();
+    existingVehicle.color=color;
+    existingVehicle.level=level;
+    existingVehicle.targetId=targetId;
+    return existingVehicle;
+  }
+  const start=pos.clone();
+  const travel=new THREE.Vector3(Math.sin(rotationY||0),0,Math.cos(rotationY||0));
+  if(travel.lengthSq()<.001)travel.set(1,0,0);
+  travel.normalize().multiplyScalar(level==='A'?1.9:1.25);
+  start.add(travel);
+  const center=HUMAN_DISPLAY_AREA.center;
+  const halfW=(HUMAN_DISPLAY_AREA.width??7.2)/2;
+  const halfD=(HUMAN_DISPLAY_AREA.depth??3.2)/2;
+  start.x=THREE.MathUtils.clamp(start.x,center.x-halfW,center.x+halfW);
+  start.z=THREE.MathUtils.clamp(start.z,center.z-halfD,center.z+halfD);
+  const vehicle=createVehicle(start,color,rotationY);
+  vehicle.scale.setScalar(.22);
+  new TWEEN.Tween(vehicle.scale).to({x:1,y:1,z:1},560).easing(TWEEN.Easing.Back.Out).start();
+  const label=createVehicleLabel(start,color,targetId);
+  label.scale.setScalar(.72);
+  new TWEEN.Tween(label.scale).to({x:1,y:1,z:1},520).easing(TWEEN.Easing.Cubic.Out).start();
+  const ring=createGroundRing(start,color);
+  ring.scale.setScalar(1.85);
+  vehicles.push(vehicle);
+  labelGroups.push(label);
+  groundRings.push(ring);
+  const record={vehicle,label,ring,lastSeen:Date.now(),createdAt:Date.now(),color,level,targetId,rotationY};
+  trackedVehicles[tid]=record;
+  moveTrackedVehicle(record,pos,color,rotationY);
+  return record;
+}
+
+function vehiclePlacementForRisk(ev,data,basePos){
+  const rawBox=ev.vehicle_bbox||ev.vehicleBox||ev.vehicle;
+  const center=HUMAN_DISPLAY_AREA.center;
+  const halfW=(HUMAN_DISPLAY_AREA.width??7.2)/2;
+  const halfD=(HUMAN_DISPLAY_AREA.depth??3.2)/2;
+  if(rawBox){
+    const box=normalizeBBox(rawBox);
+    const vehicleTid=`vehicle:${ev.vehicle_targetId||ev.vehicleTargetId||trackKeyFor({targetId:0},box,data)}`;
+    const placement=displayPositionFor(vehicleTid,box,data);
+    const pos=placement.position.clone();
+    if(basePos){
+      const level=String(ev.level||'').toUpperCase();
+      const away=pos.clone().sub(basePos);
+      away.y=0;
+      if(away.lengthSq()<.001)away.set(-1,0,-.28);
+      const criticalPair=level==='A'&&isPersonVehicleRisk(ev);
+      const minDist=criticalPair?2.7:1.18;
+      if(criticalPair){
+        // Preserve the detected relative direction, but compose the pair
+        // around the clear central stage so both targets remain readable.
+        const direction=away.normalize();
+        basePos.copy(center).addScaledVector(direction,-minDist/2);
+        pos.copy(center).addScaledVector(direction,minDist/2);
+      }else if(away.length()<minDist){
+        away.normalize().multiplyScalar(minDist);
+        pos.copy(basePos).add(away);
+      }
+      pos.x=THREE.MathUtils.clamp(pos.x,center.x-halfW,center.x+halfW);
+      pos.z=THREE.MathUtils.clamp(pos.z,center.z-halfD,center.z+halfD);
+    }
+    return {tid:vehicleTid,pos,rotationY:placement.rotationY,targetId:formatTargetId(vehicleTid)};
+  }
+  const vehicleTid=`vehicle:${data.event_id||Date.now()}`;
+  const pos=basePos.clone().add(new THREE.Vector3(-2.05,0,-.72));
+  pos.x=THREE.MathUtils.clamp(pos.x,center.x-halfW,center.x+halfW);
+  pos.z=THREE.MathUtils.clamp(pos.z,center.z-halfD,center.z+halfD);
+  return {tid:vehicleTid,pos,rotationY:HUMAN_DISPLAY_AREA.rotationY??0,targetId:formatTargetId(vehicleTid)};
+}
+
 function removeTrackedHuman(tid,t){
   scene.remove(t.human,t.label,t.ring);
   const hi=humans.indexOf(t.human);if(hi>=0)humans.splice(hi,1);
@@ -785,7 +1040,8 @@ function updateCamTarget(bbox,targetId,color,confidence){
   const top=THREE.MathUtils.clamp((bbox.y/MAP_H)*100,0,100);
   const width=THREE.MathUtils.clamp((bbox.width/MAP_W)*100,3,100-left);
   const height=THREE.MathUtils.clamp((bbox.height/MAP_H)*100,6,100-top);
-  camTargetLayer.innerHTML=`<div class="cam-box" data-id="${escapeHtml(targetId)}" data-conf="CONF ${Math.round(confidence*100)}%"></div>`;
+  const confText=confidence===null||confidence===undefined?'CONF --':`CONF ${Math.round(confidence*100)}%`;
+  camTargetLayer.innerHTML=`<div class="cam-box" data-id="${escapeHtml(targetId)}" data-conf="${confText}"></div>`;
   const box=camTargetLayer.firstElementChild;
   box.style.left=left+'%';
   box.style.top=top+'%';
@@ -801,6 +1057,9 @@ const llmCard=document.getElementById('llm-card');
 const llmTxt=llmCard.querySelector('.txt'),llmHd=llmCard.querySelector('.hd');
 const camImg=document.getElementById('cam-img');
 const camTargetLayer=document.getElementById('cam-target');
+const visionOverlay=document.getElementById('vision-overlay');
+const visionToggle=document.getElementById('vision-toggle');
+const visionStatus=document.getElementById('vision-status');
 const sT=document.getElementById('s-t'),sA=document.getElementById('s-a'),sC=document.getElementById('s-c');
 const fT=document.getElementById('f-t'),topT=document.getElementById('top-time');
 const fpsEl=document.getElementById('m-fps');
@@ -833,16 +1092,102 @@ const chainEls={
   }
 };
 let ws,total=0,crit=0,first=true,lastImageUrl='',trendChart,isFocusing=false;
-const WS_URL=`ws://${window.location.hostname||'localhost'}:5001`;
-const API_URL=`http://${window.location.hostname||'localhost'}:5000`;
+const API_HOST=window.location.hostname==='localhost'?'127.0.0.1':(window.location.hostname||'127.0.0.1');
+const WS_URL=`ws://${API_HOST}:5001`;
+const API_URL=`http://${API_HOST}:5000`;
 const CAMERA_STREAM_URL=`${API_URL}/camera/stream`;
 const processedEventIds=new Set();
 const shownApprovalIds=new Set();
 const shownEvidenceIds=new Set();
 const eventTargetMap=new Map();
 let trustState={};
+let visionMode='paused',visionBusy=false,lastVisionFrame=null;
 camImg.src=CAMERA_STREAM_URL;
 camImg.onerror=()=>{setHealthItem(healthEls.camera,'OFF','bad')};
+
+function _visionConfidence(value){
+  const n=Number(value)||0;
+  return n>100?n/1000:n>1?n/100:n;
+}
+function _ppeText(status){
+  return {correct:'合规',improper:'不规范',missing:'未佩戴',unknown:'确认中'}[status]||'确认中';
+}
+function renderVisionFrame(data){
+  lastVisionFrame=data;
+  if(!visionOverlay)return;
+  visionOverlay.innerHTML='';
+  if(!data?.active||visionMode!=='local')return;
+  const frameW=Number(data.frame_width)||0,frameH=Number(data.frame_height)||0;
+  const viewW=visionOverlay.clientWidth,viewH=visionOverlay.clientHeight;
+  if(!frameW||!frameH||!viewW||!viewH)return;
+  const scale=Math.min(viewW/frameW,viewH/frameH);
+  const offsetX=(viewW-frameW*scale)/2,offsetY=(viewH-frameH*scale)/2;
+  let compliant=0,violations=0,pending=0;
+  for(const obj of data.objects||[]){
+    const rect=obj.posRect||{};
+    const box=document.createElement('div');
+    const targetType=Number(obj.targetType);
+    const conf=Math.round(_visionConfidence(obj.confidence)*100);
+    box.className=`vision-box type-${Number.isFinite(targetType)?targetType:0}`;
+    const ppe=obj.ppeStatus||{};
+    const helmet=ppe.helmet?.status,vest=ppe.vest?.status;
+    if(targetType===0&&(helmet||vest)){
+      const states=[helmet,vest];
+      if(states.every(state=>state==='correct')){box.classList.add('ppe-correct');compliant++}
+      else if(states.some(state=>state==='missing'||state==='improper')){box.classList.add('ppe-warning');violations++}
+      else{box.classList.add('ppe-pending');pending++}
+      box.dataset.label=`人员 | 安全帽:${_ppeText(helmet)} 背心:${_ppeText(vest)}`;
+    }else{
+      box.dataset.label=`${obj.label||'target'} ${conf}%`;
+    }
+    box.style.left=`${offsetX+(Number(rect.x)||0)*scale}px`;
+    box.style.top=`${offsetY+(Number(rect.y)||0)*scale}px`;
+    box.style.width=`${Math.max(2,(Number(rect.width)||0)*scale)}px`;
+    box.style.height=`${Math.max(2,(Number(rect.height)||0)*scale)}px`;
+    visionOverlay.appendChild(box);
+  }
+  if(visionStatus){
+    const ppeSummary=violations?`穿戴异常 ${violations}`:compliant?`安全设备佩戴正常` :pending?`穿戴确认中`:`${(data.objects||[]).length}目标`;
+    visionStatus.textContent=`实时检测 · ${ppeSummary}`;
+  }
+}
+function updateVisionControl(status={}){
+  const worker=status.vision||status;
+  visionMode=status.mode||visionMode;
+  const active=visionMode==='local';
+  const ready=['ready','online'].includes(worker.status);
+  if(visionToggle){
+    visionToggle.classList.toggle('active',active);
+    visionToggle.textContent=active?'停止实时检测':'开始实时检测';
+    visionToggle.disabled=visionBusy||(!active&&!ready);
+    visionToggle.title=worker.error||'';
+  }
+  if(visionStatus&&!active){
+    visionStatus.textContent=ready?'模型已就绪':worker.status==='loading'?'模型加载中':'本地检测已暂停';
+  }
+  if(!active&&visionOverlay)visionOverlay.innerHTML='';
+}
+async function setVisionMode(mode){
+  if(visionBusy)return;
+  visionBusy=true;
+  updateVisionControl({mode:visionMode,vision:{status:'ready'}});
+  try{
+    const resp=await fetch(`${API_URL}/vision/mode`,{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode})
+    });
+    const data=await resp.json();
+    if(!resp.ok)throw new Error(data.message||`HTTP ${resp.status}`);
+    updateVisionControl(data);
+  }catch(error){
+    if(visionStatus)visionStatus.textContent='启动失败';
+    console.error('[Vision]',error);
+  }finally{
+    visionBusy=false;
+    refreshHealth();
+  }
+}
+if(visionToggle)visionToggle.addEventListener('click',()=>setVisionMode(visionMode==='local'?'paused':'local'));
+window.addEventListener('resize',()=>{if(lastVisionFrame)renderVisionFrame(lastVisionFrame)});
 
 function setFlowState(stage='edge'){
   const idx={cam:0,edge:1,llm:2,decision:3}[stage]??1;
@@ -976,13 +1321,19 @@ async function refreshHealth(){
     const camera=services.camera||{};
     const db=services.database||{};
     const approval=services.approval||{};
+    const detection=services.detection||{};
     setHealthItem(healthEls.api,'OK','ok');
     setHealthItem(healthEls.ws,String(wsInfo.clients??0),(ws&&ws.readyState===WebSocket.OPEN)?'ok':'warn');
     setHealthItem(healthEls.camera,camera.status==='online'?`${camera.fps||0} FPS`:'OFF',camera.status==='online'?'ok':'bad');
     setHealthHint(healthEls.camera,camera.status==='online'?`${camera.stream||'RTSP'} · ${_timeShort(camera.last_frame_at)} · R${camera.reconnects??0}`:'实时视频');
     setHealthItem(healthEls.db,`${db.today??0}/${db.total??0}`,'ok');
     setHealthItem(healthEls.approval,String(approval.pending??0),(approval.pending??0)>0?'warn':'ok');
+    if(sT)sT.textContent=String(db.today??0);
+    if(trendChart&&Array.isArray(db.trend_24h)&&db.trend_24h.length===12){
+      trendChart.setOption({series:[{data:db.trend_24h.map(value=>Number(value)||0)}]});
+    }
     if(healthEls.updated)healthEls.updated.textContent=_timeShort(data.timestamp);
+    updateVisionControl(detection);
   }catch(e){
     setHealthItem(healthEls.api,'DOWN','bad');
     setHealthItem(healthEls.ws,'--','bad');
@@ -1007,7 +1358,7 @@ function initChart(){
     grid:{left:34,right:16,top:22,bottom:24},
     xAxis:{type:'category',boundaryGap:false,data:['00','02','04','06','08','10','12','14','16','18','20','22'],axisLine:{lineStyle:{color:'rgba(255,255,255,.12)'}},axisTick:{show:false},axisLabel:{color:'rgba(232,244,239,.42)',fontSize:10}},
     yAxis:{type:'value',minInterval:1,splitLine:{lineStyle:{color:'rgba(255,255,255,.07)'}},axisLabel:{color:'rgba(232,244,239,.42)',fontSize:10}},
-    series:[{name:'违规',type:'line',smooth:true,symbol:'circle',symbolSize:5,data:[2,1,0,1,3,5,4,6,8,7,5,4],lineStyle:{color:'#ffb74a',width:2},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(255,183,74,.34)'},{offset:1,color:'rgba(255,183,74,.02)'}])},itemStyle:{color:'#ffb74a'}}]
+    series:[{name:'违规',type:'line',smooth:true,symbol:'circle',symbolSize:5,data:[0,0,0,0,0,0,0,0,0,0,0,0],lineStyle:{color:'#ffb74a',width:2},areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0,color:'rgba(255,183,74,.34)'},{offset:1,color:'rgba(255,183,74,.02)'}])},itemStyle:{color:'#ffb74a'}}]
   });
 }
 setTimeout(initChart,260);
@@ -1146,9 +1497,13 @@ function _buildDecisionDiv(decision){
   const adopted=decision.llm_adopted?'已采纳':'未采纳';
   const reason=decision.reason?`<br>▸ 裁决依据：${escapeHtml(decision.reason)}`:'';
   const confidence=Number.isFinite(Number(decision.confidence))?`<br>▸ LLM置信度：${Number(decision.confidence).toFixed(2)}`:'';
+  const validation=decision.plan_validation||{};
+  const validationLine=validation.baseline_preserved
+    ?`<br>▸ 工具策略：采纳 ${validation.accepted?.length||0} 项 / 规则补齐 ${validation.forced?.length||0} 项 / 拒绝 ${validation.rejected?.length||0} 项`
+    :'';
   const div=document.createElement('div');
   div.style.cssText='color:rgba(255,183,74,.82);margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,183,74,.18);font-size:11px;line-height:1.65';
-  div.innerHTML=`【调度裁决】<br>▸ 规则等级 ${rule} + LLM建议 ${llm} → 最终 ${finalLevel}<br>▸ 裁决策略：${policy}<br>▸ LLM建议：${adopted}${confidence}${reason}`;
+  div.innerHTML=`【调度裁决】<br>▸ 规则等级 ${rule} + LLM建议 ${llm} → 最终 ${finalLevel}<br>▸ 裁决策略：${policy}<br>▸ LLM建议：${adopted}${confidence}${reason}${validationLine}`;
   return div;
 }
 
@@ -1182,6 +1537,7 @@ async function triggerDemoScenario(scenario,btn){
     if(!resp.ok||data.status!=='ok')throw new Error(data.message||`HTTP ${resp.status}`);
     if(statusEl)statusEl.textContent=`已注入 ${data.event_id||scenario}`;
     setFlowState('cam');
+    await renderLatestDemoEvent(data.event_id);
     refreshHealth();
   }catch(e){
     if(statusEl)statusEl.textContent=`演示触发失败：${e.message}`;
@@ -1191,6 +1547,17 @@ async function triggerDemoScenario(scenario,btn){
 }
 document.querySelectorAll('.demo-btn').forEach(btn=>btn.addEventListener('click',()=>triggerDemoScenario(btn.dataset.demo,btn)));
 
+async function renderLatestDemoEvent(eventId){
+  try{
+    const resp=await fetch(`${API_URL}/latest_event`,{cache:'no-store'});
+    if(!resp.ok)return;
+    const event=await resp.json();
+    if(!event?.events?.length)return;
+    if(eventId&&event.event_id&&event.event_id!==eventId)return;
+    handleMessage({...event,_demoDirect:true});
+  }catch(e){}
+}
+
 function _focusCameraOn(pos){
   if(isFocusing)return;
   isFocusing=true;
@@ -1199,11 +1566,11 @@ function _focusCameraOn(pos){
   defaultTheta=ca.theta;
   defaultPhi=ca.phi;
   const state={x:camTarget.x,y:camTarget.y,z:camTarget.z,d:cd,theta:ca.theta,phi:ca.phi};
-  new TWEEN.Tween(state).to({x:pos.x,y:5.2,z:pos.z,d:26,theta:ca.theta+.18,phi:1.06},1300)
+  new TWEEN.Tween(state).to({x:pos.x,y:3.35,z:pos.z,d:29,theta:ca.theta+.14,phi:1.02},1300)
     .easing(TWEEN.Easing.Cubic.InOut)
     .onUpdate(()=>{camTarget.set(state.x,state.y,state.z);cd=state.d;ca.theta=state.theta;ca.phi=state.phi})
     .chain(new TWEEN.Tween(state).to({x:defaultTarget.x,y:defaultTarget.y,z:defaultTarget.z,d:defaultDist,theta:defaultTheta,phi:defaultPhi},1700)
-      .easing(TWEEN.Easing.Quadratic.InOut).delay(3600)
+      .easing(TWEEN.Easing.Quadratic.InOut).delay(6500)
       .onUpdate(()=>{camTarget.set(state.x,state.y,state.z);cd=state.d;ca.theta=state.theta;ca.phi=state.phi})
       .onComplete(()=>{isFocusing=false}))
     .start();
@@ -1227,6 +1594,16 @@ function normalizeViolations(ev){
   if(type.includes('区域')||type.includes('入侵')||type.includes('危险区')||type.includes('车辆通道'))violations.push('intrusion');
   if(type.includes('人车')||type.includes('接近')||type.includes('混行')||type.includes('距离'))violations.push('proximity');
   return violations;
+}
+
+function isVehicleOnlyEvent(ev){
+  const type=String(ev.type||'');
+  return (type.includes('车辆检测')||type.includes('叉车检测')||type.includes('Fork')||type.includes('truck'))&&!type.includes('人车')&&!type.includes('区域')&&!type.includes('入侵');
+}
+
+function isPersonVehicleRisk(ev){
+  const type=String(ev.type||'');
+  return type.includes('人车')||type.includes('混行')||type.includes('接近')||type.includes('距离');
 }
 
 function stateForLevel(level,violations=[]){
@@ -1339,7 +1716,7 @@ function bindEventTarget(eventId,tid){
 function eventTargetIds(data={}){
   const ids=new Set(eventTargetMap.get(data.event_id)||[]);
   for(const ev of data.events||[]){
-    const bbox=normalizeBBox(ev.bbox||{x:1000,y:350,width:80,height:160});
+    const bbox=normalizeBBox(ev.person_bbox||ev.bbox||{x:1000,y:350,width:80,height:160});
     ids.add(trackKeyFor(ev,bbox,data));
   }
   return [...ids];
@@ -1378,20 +1755,21 @@ function createAlertImpact(pos,color){
 function addAlarm(data,ev){
   total++;
   if(ev.level==='A')crit++;
-  sT.textContent=total;
-  sC.textContent=crit;
+  sC.textContent=total;
   const rawLevel=String(ev.level||'B').toUpperCase();
   const level=['A','B','C'].includes(rawLevel)?rawLevel:'B';
   const eventType=escapeHtml(ev.type||'安全事件');
   const eventDetail=escapeHtml(ev.detail||'已定位到场景坐标');
   const eventTime=escapeHtml(data.timestamp||new Date().toLocaleString('zh-CN',{hour12:false}));
-  const bbox=normalizeBBox(ev.bbox||{x:1000,y:350,width:80,height:160});
+  const bbox=normalizeBBox(ev.person_bbox||ev.bbox||{x:1000,y:350,width:80,height:160});
   const tid=trackKeyFor(ev,bbox,data);
   bindEventTarget(data.event_id,tid);
   const targetId=formatTargetId(tid);
   const camId=escapeHtml(ev.cameraId||data.cameraId||'CAM-01');
-  const confRaw=Number(ev.confidence??ev.score??ev.conf??(.86+Math.random()*.09));
-  const confidence=Math.max(0,Math.min(1,confRaw));
+  const suppliedConfidence=ev.confidence??ev.score??ev.conf;
+  const confRaw=suppliedConfidence===undefined||suppliedConfidence===null||suppliedConfidence===''?null:Number(suppliedConfidence);
+  const confidence=Number.isFinite(confRaw)?Math.max(0,Math.min(1,confRaw)):null;
+  const confidenceLabel=confidence===null?'--':`${Math.round(confidence*100)}%`;
   const statusText=level==='A'?'待审批':level==='B'?'已拦截':'跟踪中';
   const evidenceKey=data.event_id||data.image_url||'';
   const showEvidence=Boolean(data.image_url)&&!shownEvidenceIds.has(evidenceKey);
@@ -1401,7 +1779,7 @@ function addAlarm(data,ev){
   card.className=`card ${level}`;
   card.innerHTML=`<div class="t"><span>${eventType}</span><span class="b ${level}">${escapeHtml(level)} 级</span></div><div class="d">${eventDetail}</div>
     ${evidenceHtml}
-    <div class="meta"><span>目标 <strong>${escapeHtml(targetId)}</strong></span><span>相机 <strong>${camId}</strong></span><span>置信 <strong>${Math.round(confidence*100)}%</strong></span><span>状态 <strong>${statusText}</strong></span></div>
+    <div class="meta"><span>目标 <strong>${escapeHtml(targetId)}</strong></span><span>相机 <strong>${camId}</strong></span><span>置信 <strong>${confidenceLabel}</strong></span><span>状态 <strong>${statusText}</strong></span></div>
     <div class="m">${eventTime}</div>`;
   listEl.prepend(card);
   while(listEl.children.length>32)listEl.lastChild.remove();
@@ -1414,9 +1792,23 @@ function addAlarm(data,ev){
   const nextState=stateForLevel(level,violations);
   updateCamTarget(bbox,targetId,color,confidence);
   setCoreStatus(level,level==='A'?'高危目标锁定':level==='B'?'违规目标跟踪':'全域巡检中');
+  let vehiclePlacement=null;
+  if(isPersonVehicleRisk(ev)||ev.vehicle_bbox){
+    vehiclePlacement=vehiclePlacementForRisk(ev,data,pos);
+    upsertVehicleTarget(vehiclePlacement.tid,vehiclePlacement.pos,color,vehiclePlacement.rotationY,vehiclePlacement.targetId,level);
+  }
   if(level==='A'){
-    _focusCameraOn(pos);
+    const focusPos=vehiclePlacement?pos.clone().lerp(vehiclePlacement.pos,.5):pos;
+    _focusCameraOn(focusPos);
     createAlertImpact(pos,color);
+  }
+  if(isVehicleOnlyEvent(ev)){
+    upsertVehicleTarget(tid,pos,color,rotationY,targetId,level);
+    sA.textContent=Object.keys(trackedHumans).length+Object.keys(trackedVehicles).length;
+    alertLight.color.setHex(color);
+    alertLight.intensity=level==='A'?24:16;
+    updateTrend();
+    return;
   }
   const existing=trackedHumans[tid];
   if(existing){
@@ -1469,7 +1861,7 @@ function addAlarm(data,ev){
     trackedHumans[tid]={human:h,label:l,ring:r,lastSeen:Date.now(),createdAt:Date.now(),violations,color,level,targetId,state:nextState,resolvedAt:0,rotationY};
     setHumanStateVisual(trackedHumans[tid],nextState);
   }
-  sA.textContent=Object.keys(trackedHumans).length;
+  sA.textContent=Object.keys(trackedHumans).length+Object.keys(trackedVehicles).length;
   alertLight.color.setHex(color);
   alertLight.intensity=level==='A'?24:16;
   updateTrend();
@@ -1497,6 +1889,15 @@ function renderEventData(data){
 }
 function handleMessage(raw){
   const data=typeof raw==='string'?JSON.parse(raw):raw;
+  if(data.type==='vision_frame'){
+    renderVisionFrame(data);
+    return;
+  }
+  if(data.type==='vision_mode'){
+    updateVisionControl(data);
+    if(data.status==='fallback'&&visionStatus)visionStatus.textContent='已自动回退';
+    return;
+  }
   if(data.type==='approval_result'){
     updateTrustChain(data,'审批回传');
     updateEventLifecycle(data);
@@ -1650,6 +2051,21 @@ function animate(){
       }
     });
   }
+  for(const v of vehicles){
+    v.traverse(o=>{
+      if(o.userData?.isVehiclePulse){
+        const phase=(now*.001)%1;
+        o.scale.setScalar(1+phase*1.8);
+        o.material.opacity=(o.userData.baseOpacity||.34)*(1-phase*.72);
+      }
+      if(o.userData?.isVehicleMarker){
+        const pulse=.86+Math.sin(now*(o.userData.pulseSpeed||.006))*.16;
+        o.position.y=(o.userData.baseY||2.1)+Math.sin(now*.004)*.08;
+        o.scale.setScalar(pulse);
+        o.rotation.y+=dt*.9;
+      }
+    });
+  }
   for(let i=transientEffects.length-1;i>=0;i--){
     const o=transientEffects[i];
     const age=now-o.userData.created;
@@ -1694,7 +2110,13 @@ function animate(){
       setHumanStateVisual(t,'stale');
     }
   }
-  sA.textContent=Object.keys(trackedHumans).length;
+  for(const[tid,t]of Object.entries(trackedVehicles)){
+    const silentFor=now-t.lastSeen;
+    if(silentFor>HUMAN_TRACK_TTL){
+      removeTrackedVehicle(tid,t);
+    }
+  }
+  sA.textContent=Object.keys(trackedHumans).length+Object.keys(trackedVehicles).length;
   alertLight.intensity=THREE.MathUtils.lerp(alertLight.intensity,12,dt*1.5);
   composer.render();
   labelRenderer.render(scene,camera);

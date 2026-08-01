@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-08-01T04:38:30.655756+00:00",
+  "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 16:37:03) [MSC v.1929 64 bit (AMD64)]",
+  "platform": "win32",
+  "live_model_included": false,
+  "passed": true,
+  "steps": [
+    {
+      "name": "agent_policy",
+      "command": "D:\\study\\anoconda\\python.exe -B -m benchmarks.run_agent_benchmark",
+      "exit_code": 0,
+      "duration_seconds": 0.11,
+      "passed": true
+    },
+    {
+      "name": "runtime_faults",
+      "command": "D:\\study\\anoconda\\python.exe -B -m benchmarks.run_runtime_faults",
+      "exit_code": 0,
+      "duration_seconds": 2.833,
+      "passed": true
+    },
+    {
+      "name": "sop_retrieval",
+      "command": "D:\\study\\anoconda\\python.exe -B -m benchmarks.run_sop_benchmark",
+      "exit_code": 0,
+      "duration_seconds": 0.049,
+      "passed": true
+    },
+    {
+      "name": "unit_and_integration",
+      "command": "D:\\study\\anoconda\\python.exe -B -m unittest discover -s tests -v",
+      "exit_code": 0,
+      "duration_seconds": 4.552,
+      "passed": true
+    }
+  ]
+}

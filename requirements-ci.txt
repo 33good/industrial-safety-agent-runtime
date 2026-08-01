@@ -1,0 +1,3 @@
+# Minimal dependencies for deterministic Agent benchmarks and unit tests.
+numpy>=1.26,<3
+Pillow>=10,<13

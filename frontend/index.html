@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>工厂安全数字孪生系统</title>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<link rel="stylesheet" href="./css/twin.css">
+<script src="./vendor/echarts/echarts.min.js"></script>
+<script src="./vendor/marked/marked.min.js"></script>
+<link rel="stylesheet" href="./css/twin.css?v=local-vision-1">
 </head>
 <body>
 <div id="app">
@@ -41,8 +41,15 @@
 
   <section id="left-stack" class="hud">
     <div id="cam-panel" class="panel">
-      <div class="panel-h"><h2>CAM-01 实时感知</h2><small>EDGE VISION</small></div>
+      <div class="panel-h">
+        <h2>CAM-01 实时感知</h2>
+        <div class="cam-live-controls">
+          <small id="vision-status">模型准备中</small>
+          <button type="button" id="vision-toggle">开始实时检测</button>
+        </div>
+      </div>
       <img id="cam-img" src="" alt="等待实时视频">
+      <div id="vision-overlay" aria-hidden="true"></div>
       <div id="cam-target"></div>
     </div>
     <div id="chart-box" class="panel">
@@ -102,7 +109,7 @@
       </div>
       <div id="demo-status">复用真实Agent管线</div>
     </div>
-    <div id="ft"><span><span class="dot"></span>边缘盒子 · 本地大模型</span><span id="f-t">--:--:--</span></div>
+    <div id="ft"><span><span class="dot"></span>本地视觉 · 可信 Agent Runtime</span><span id="f-t">--:--:--</span></div>
   </aside>
 
   <nav id="view-controls" class="hud" aria-label="视角控制">
@@ -118,9 +125,9 @@
 </div>
 
 <script type="importmap">
-{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/","@tweenjs/tween.js":"https://unpkg.com/@tweenjs/tween.js@23.1.1/dist/tween.esm.js"}}
+{"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/","@tweenjs/tween.js":"./vendor/tween/tween.esm.js"}}
 </script>
 
-<script type="module" src="./js/app.js"></script>
+<script type="module" src="./js/app.js?v=local-vision-1"></script>
 </body>
 </html>

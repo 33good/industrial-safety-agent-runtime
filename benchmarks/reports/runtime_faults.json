@@ -1,0 +1,42 @@
+{
+  "benchmark": "industrial-agent-runtime-faults-v1",
+  "generated_at": "2026-08-01T04:38:25.592087+00:00",
+  "summary": {
+    "cases": 6,
+    "passed": 6,
+    "failed": 0,
+    "pass_rate_pct": 100.0
+  },
+  "results": [
+    {
+      "case_id": "transient_retry_recovers",
+      "passed": true,
+      "detail": "status=succeeded,attempts=2"
+    },
+    {
+      "case_id": "duplicate_side_effect_suppressed",
+      "passed": true,
+      "detail": "reused=True,handler_calls=2"
+    },
+    {
+      "case_id": "permanent_failure_not_retried",
+      "passed": true,
+      "detail": "status=failed,attempts=1"
+    },
+    {
+      "case_id": "indeterminate_tool_requires_human",
+      "passed": true,
+      "detail": "status=manual_takeover"
+    },
+    {
+      "case_id": "completed_side_effect_reconciled",
+      "passed": true,
+      "detail": "status=succeeded"
+    },
+    {
+      "case_id": "vlm_overload_is_bounded",
+      "passed": true,
+      "detail": "rejected_total=1"
+    }
+  ]
+}

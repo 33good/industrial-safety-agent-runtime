@@ -1,6 +1,10 @@
 """Controlled demo/replay scenarios that reuse the real alarm pipeline."""
 import io
+from pathlib import Path
 from PIL import Image, ImageDraw
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+A_ALARM_IMAGE = PROJECT_ROOT / "data" / "backup" / "huifang" / "a_alarm.png"
 
 
 def demo_alarm_body(scenario: str) -> dict:
@@ -27,14 +31,21 @@ def demo_alarm_body(scenario: str) -> dict:
             {"targetType": 3, "targetId": 501, "confidence": 96, "posRect": {"x": 1220, "y": 150, "width": 120, "height": 150}},
         ]
     else:
+        risk_box = {"x": 440, "y": 180, "width": 300, "height": 270}
         obj_info = [
-            {"targetType": 0, "targetId": 101, "confidence": 95, "posRect": {"x": 650, "y": 120, "width": 90, "height": 210}},
-            {"targetType": 4, "targetId": 201, "confidence": 92, "posRect": {"x": 700, "y": 190, "width": 120, "height": 90}},
+            {"targetType": 0, "targetId": 101, "confidence": 95, "posRect": {"x": 628, "y": 306, "width": 45, "height": 112}},
+            {"targetType": 1, "targetId": 103, "confidence": 93, "posRect": {"x": 640, "y": 306, "width": 18, "height": 18}},
+            {"targetType": 2, "targetId": 102, "confidence": 93, "posRect": {"x": 636, "y": 323, "width": 29, "height": 61}},
+            {"targetType": 4, "targetId": 201, "confidence": 92, "posRect": {"x": 456, "y": 226, "width": 132, "height": 166}},
         ]
+        return {"objInfo": obj_info, "demo": True, "scenario": scenario, "riskBox": risk_box, "focusLevel": "A"}
     return {"objInfo": obj_info, "demo": True, "scenario": scenario}
 
 
 def demo_image(alarm_body: dict, scenario: str) -> bytes:
+    if scenario == "a_person_vehicle" and A_ALARM_IMAGE.exists():
+        return A_ALARM_IMAGE.read_bytes()
+
     img = Image.new("RGB", (1600, 900), (20, 29, 31))
     draw = ImageDraw.Draw(img)
     draw.rectangle([0, 0, 1599, 899], outline=(60, 95, 95), width=2)

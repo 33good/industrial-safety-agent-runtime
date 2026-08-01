@@ -5,6 +5,7 @@ import sqlite3
 import json
 import os
 import threading
+from contextlib import contextmanager
 from datetime import datetime
 
 
@@ -15,12 +16,24 @@ class DatabaseTool:
         self._lock = threading.Lock()
         self._init_db()
 
+    @contextmanager
+    def _connection(self):
+        """Commit and close deterministically, including on Windows/Python 3.13."""
+        conn = sqlite3.connect(self.db_path)
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
     def _init_db(self):
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS alarms (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     event_id TEXT,
+                    run_id TEXT,
+                    trace_id TEXT,
                     timestamp TEXT NOT NULL,
                     event_types TEXT NOT NULL,
                     level TEXT NOT NULL,
@@ -28,6 +41,10 @@ class DatabaseTool:
                     bbox_json TEXT,
                     llm_analysis TEXT,
                     llm_recommendation TEXT,
+                    llm_model TEXT,
+                    prompt_version TEXT,
+                    sop_retrieval TEXT,
+                    rag_status TEXT,
                     dispatch_decision TEXT,
                     dispatch_actions TEXT,
                     approval_id TEXT,
@@ -46,13 +63,21 @@ class DatabaseTool:
             # 索引加速查询
             conn.execute("CREATE INDEX IF NOT EXISTS idx_alarms_time ON alarms(timestamp)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_alarms_level ON alarms(level)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_alarms_event_id ON alarms(event_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_alarms_run_id ON alarms(run_id)")
 
     @staticmethod
     def _ensure_columns(conn):
         columns = {row[1] for row in conn.execute("PRAGMA table_info(alarms)").fetchall()}
         migrations = {
             "event_id": "ALTER TABLE alarms ADD COLUMN event_id TEXT",
+            "run_id": "ALTER TABLE alarms ADD COLUMN run_id TEXT",
+            "trace_id": "ALTER TABLE alarms ADD COLUMN trace_id TEXT",
             "llm_recommendation": "ALTER TABLE alarms ADD COLUMN llm_recommendation TEXT",
+            "llm_model": "ALTER TABLE alarms ADD COLUMN llm_model TEXT",
+            "prompt_version": "ALTER TABLE alarms ADD COLUMN prompt_version TEXT",
+            "sop_retrieval": "ALTER TABLE alarms ADD COLUMN sop_retrieval TEXT",
+            "rag_status": "ALTER TABLE alarms ADD COLUMN rag_status TEXT",
             "dispatch_decision": "ALTER TABLE alarms ADD COLUMN dispatch_decision TEXT",
             "dispatch_actions": "ALTER TABLE alarms ADD COLUMN dispatch_actions TEXT",
             "approval_id": "ALTER TABLE alarms ADD COLUMN approval_id TEXT",
@@ -82,7 +107,7 @@ class DatabaseTool:
         if not event_id and not approval_id:
             return False
         lifecycle_status = "approved" if status == "approved" else "rejected"
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT id, timeline FROM alarms WHERE "
@@ -113,7 +138,7 @@ class DatabaseTool:
         execution = execution or {}
         status = execution.get("status", "")
         lifecycle_status = "executed" if status == "executed" else ("rejected" if status == "cancelled" else status)
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT id, timeline FROM alarms WHERE "
@@ -146,6 +171,35 @@ class DatabaseTool:
             )
             return True
 
+    def update_event_snapshot(self, event) -> bool:
+        """Persist the completed dispatch snapshot without inserting a second alarm."""
+        event_id = getattr(event, "event_id", "") or ""
+        if not event_id:
+            return False
+        with self._lock, self._connection() as conn:
+            cursor = conn.execute(
+                "UPDATE alarms SET llm_analysis=?, llm_recommendation=?, llm_model=?, prompt_version=?, "
+                "sop_retrieval=?, rag_status=?, dispatch_decision=?, "
+                "dispatch_actions=?, approval_id=?, approval_status=?, lifecycle_status=?, timeline=? "
+                "WHERE id=(SELECT id FROM alarms WHERE event_id=? ORDER BY id DESC LIMIT 1)",
+                (
+                    getattr(event, "llm_analysis", "") or "",
+                    json.dumps(getattr(event, "llm_recommendation", {}) or {}, ensure_ascii=False),
+                    getattr(event, "llm_model", "") or "",
+                    getattr(event, "prompt_version", "") or "",
+                    json.dumps(getattr(event, "sop_retrieval", {}) or {}, ensure_ascii=False),
+                    getattr(event, "rag_status", "") or "not_run",
+                    json.dumps(getattr(event, "dispatch_decision", {}) or {}, ensure_ascii=False),
+                    json.dumps(getattr(event, "dispatch_actions", []) or [], ensure_ascii=False),
+                    getattr(event, "approval_id", "") or "",
+                    getattr(event, "approval_status", "") or "auto",
+                    getattr(event, "lifecycle_status", "") or "decided",
+                    json.dumps((getattr(event, "timeline", []) or [])[-20:], ensure_ascii=False),
+                    event_id,
+                ),
+            )
+            return cursor.rowcount > 0
+
     def store(self, event) -> str:
         """存储报警事件"""
         event_types = ", ".join(e["type"] for e in event.events)
@@ -158,10 +212,16 @@ class DatabaseTool:
         detail = "; ".join(e.get("detail", "") for e in event.events)
         bbox_json = json.dumps([e.get("bbox", {}) for e in event.events], ensure_ascii=False)
         llm_recommendation = json.dumps(getattr(event, "llm_recommendation", {}) or {}, ensure_ascii=False)
+        llm_model = getattr(event, "llm_model", "") or ""
+        prompt_version = getattr(event, "prompt_version", "") or ""
+        sop_retrieval = json.dumps(getattr(event, "sop_retrieval", {}) or {}, ensure_ascii=False)
+        rag_status = getattr(event, "rag_status", "") or "not_run"
         dispatch_decision = json.dumps(getattr(event, "dispatch_decision", {}) or {}, ensure_ascii=False)
         dispatch_actions = json.dumps(getattr(event, "dispatch_actions", []) or [], ensure_ascii=False)
         image_path = getattr(event, "image_url", "")
         event_id = getattr(event, "event_id", "")
+        run_id = getattr(event, "run_id", "")
+        trace_id = getattr(event, "trace_id", "")
         approval_id = getattr(event, "approval_id", "")
         approval_status = getattr(event, "approval_status", "")
         execution_id = getattr(event, "execution_id", "")
@@ -171,27 +231,28 @@ class DatabaseTool:
         lifecycle_status = getattr(event, "lifecycle_status", "")
         timeline = json.dumps(getattr(event, "timeline", []) or [], ensure_ascii=False)
 
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             conn.execute(
-                "INSERT INTO alarms (event_id, timestamp, event_types, level, detail, bbox_json, llm_analysis, "
-                "llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status, "
+                "INSERT INTO alarms (event_id, run_id, trace_id, timestamp, event_types, level, detail, bbox_json, llm_analysis, "
+                "llm_recommendation, llm_model, prompt_version, sop_retrieval, rag_status, dispatch_decision, dispatch_actions, approval_id, approval_status, "
                 "execution_id, execution_status, execution_result, execution_actions, lifecycle_status, timeline, image_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    event_id, event.timestamp, event_types, level, detail, bbox_json, event.llm_analysis,
-                    llm_recommendation, dispatch_decision, dispatch_actions, approval_id, approval_status,
+                    event_id, run_id, trace_id, event.timestamp, event_types, level, detail, bbox_json, event.llm_analysis,
+                    llm_recommendation, llm_model, prompt_version, sop_retrieval, rag_status,
+                    dispatch_decision, dispatch_actions, approval_id, approval_status,
                     execution_id, execution_status, execution_result, execution_actions, lifecycle_status, timeline, image_path
                 )
             )
         return f"已存入数据库 (total={self.count()})"
 
     def count(self) -> int:
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             return conn.execute("SELECT COUNT(*) FROM alarms").fetchone()[0]
 
     def query_recent(self, hours: int = 1) -> list:
         """查询最近的报警"""
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT * FROM alarms WHERE created_at >= datetime('now','localtime',? || ' hours') "
@@ -202,11 +263,18 @@ class DatabaseTool:
 
     def get_stats(self) -> dict:
         """统计信息"""
-        with self._lock, sqlite3.connect(self.db_path) as conn:
+        with self._lock, self._connection() as conn:
             total = conn.execute("SELECT COUNT(*) FROM alarms").fetchone()[0]
             a_count = conn.execute("SELECT COUNT(*) FROM alarms WHERE level='A'").fetchone()[0]
             b_count = conn.execute("SELECT COUNT(*) FROM alarms WHERE level='B'").fetchone()[0]
             today = conn.execute(
                 "SELECT COUNT(*) FROM alarms WHERE date(created_at)=date('now','localtime')"
             ).fetchone()[0]
-        return {"total": total, "A": a_count, "B": b_count, "today": today}
+            hourly_rows = conn.execute(
+                "SELECT CAST(strftime('%H', created_at) AS INTEGER) AS hour, COUNT(*) "
+                "FROM alarms WHERE date(created_at)=date('now','localtime') GROUP BY hour"
+            ).fetchall()
+        trend_24h = [0] * 12
+        for hour, count in hourly_rows:
+            trend_24h[min(11, max(0, int(hour) // 2))] = int(count)
+        return {"total": total, "A": a_count, "B": b_count, "today": today, "trend_24h": trend_24h}

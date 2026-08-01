@@ -1,503 +1,258 @@
-"""
-研电赛 - 智能安全监控后端
-海康盒子 → 感知Agent → 安全Agent(LLM) → 调度Agent → 工具执行 → 3D前端
-"""
-import json
+"""HTTP entry point for the local-vision industrial safety Agent system."""
 import base64
+import json
 import os
-import sys
-import time
+import socket
 import threading
-import io
-import uuid
+import time
 from datetime import datetime
-from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from PIL import Image, ImageDraw, ImageFont
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+from config import Settings
+from services.agent_runtime import AgentRuntime
 from services.camera_stream import CameraStreamWorker
-from services.demo_scenarios import demo_alarm_body, demo_image
-from services.recent_events import RecentEventStore
-
-# agent 模块
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from agents.perception import PerceptionAgent
-from agents.safety_agent import SafetyAgent
-from agents.dispatch import DispatchAgent
-from agents.memory import MemoryModule
-from tools.database import DatabaseTool
-from tools.notifier import NotifierTool
-from tools.reporter import ReporterTool
-from tools.human_loop import HumanLoopTool
-from tools.actuator import ActuatorTool
-
-# ===== 配置 =====
-LISTEN_PORT = 5000
-ALARM_DIR = "./alarms"
-CAMERA_RTSP_URL = "rtsp://admin:HBgkjk%402022@10.53.4.81:554/Streaming/Channels/102"
-CAMERA_JPEG_QUALITY = int(os.environ.get("CAMERA_JPEG_QUALITY", "72"))
-CAMERA_RECONNECT_SECONDS = float(os.environ.get("CAMERA_RECONNECT_SECONDS", "2"))
-
-# ===== LLM 配置 =====
-LLM_MODE = "ollama"          # "ollama" = 本地视觉模型, "deepseek" = 云端文本模型
-OLLAMA_MODEL = "qwen2.5vl:7b"   # Ollama 视觉模型名称
-OLLAMA_URL = "http://localhost:11434/api/generate"
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-LLM_TIMEOUT_SECONDS = 20
-
-# ===== 钉钉/企微 Webhook =====
-NOTIFY_PLATFORM = "dingtalk"  # "dingtalk" 或 "wecom"
-NOTIFY_WEBHOOK = "https://oapi.dingtalk.com/robot/send?access_token=c05b8b809f36037a880a3ba59f1047f835698870f8ca83bb79336547bf010abc"
-
-# ===== 公网穿透（Cpolar/Ngrok）=====
-# cpolar http 5000 后，把输出的公网 URL 填到这里
-PUBLIC_URL = "https://3f6488c2.r9.cpolar.top"
-
-os.makedirs(ALARM_DIR, exist_ok=True)
-
-_RECENT_STORE = RecentEventStore(limit=50)
+from services.local_vision import LocalVisionWorker
+from services.realtime import RealtimeBroadcaster
 
 
-def _new_event_id() -> str:
-    return "EVT_" + datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+class Application:
+    """Owns runtime services while keeping HTTP handlers stateless."""
+
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self.realtime = RealtimeBroadcaster(settings.websocket_port)
+        self.runtime = AgentRuntime(settings, self.realtime)
+        self.camera = CameraStreamWorker(
+            settings.camera_rtsp_url,
+            settings.camera_jpeg_quality,
+            settings.camera_reconnect_seconds,
+        )
+        self.vision = None
+
+    def start(self) -> None:
+        self.realtime.start()
+        recovery = self.runtime.recover_incomplete_runs()
+        print(
+            "[Recovery] "
+            f"audited={recovery['audited']} analysis={recovery['analysis_resumed']} "
+            f"tools={recovery['tools_resumed']} manual={recovery['manual_takeover']}"
+        )
+        if not self.settings.camera_rtsp_url:
+            print("[Camera] 未配置 CAMERA_RTSP_URL，实时视频和本地推理已禁用")
+            return
+        self.camera.start()
+        print(f"[Camera] RTSP 接入已启动 id={self.settings.camera_id}")
+        if not self.settings.vision_enabled:
+            print("[Vision] 本地YOLO推理已禁用 (VISION_ENABLED=0)")
+            return
+        self.vision = LocalVisionWorker(
+            camera_worker=self.camera,
+            on_detections=self._ingest_local_detection,
+            model_path=str(self.settings.vision_model_path),
+            camera_id=self.settings.camera_id,
+            interval_seconds=self.settings.vision_interval_seconds,
+            confidence=self.settings.vision_confidence,
+            image_size=self.settings.vision_image_size,
+            device=self.settings.vision_device,
+            require_ppe=self.settings.vision_require_ppe,
+            on_frame=self._publish_vision_frame,
+            on_unavailable=self._handle_vision_unavailable,
+            profile=self.settings.vision_profile,
+        )
+        self.vision.start()
+        print(f"[Vision] 本地YOLO推理已请求: {self.settings.vision_model_path}")
+
+    def _ingest_local_detection(self, body: dict, image: bytes) -> dict:
+        return self.runtime.ingest_detection(body, image, source="local_yolo")
+
+    def ingest_external_detection(self, body: dict, image: bytes) -> dict:
+        return self.runtime.ingest_detection(body, image, source="external")
+
+    def _publish_vision_frame(self, message: dict) -> None:
+        payload = dict(message)
+        payload["detection_mode"] = "local" if payload.get("active") else "paused"
+        self.realtime.publish(payload)
+
+    def _handle_vision_unavailable(self, error: str) -> None:
+        print(f"[Vision] 连续推理失败，本地检测已暂停；Agent仍可通过通用事件入口运行: {error}")
+        self.realtime.publish({
+            "type": "vision_mode",
+            "mode": "paused",
+            "status": "degraded",
+            "reason": error,
+        })
+
+    def set_detection_mode(self, mode: str) -> tuple[dict, int]:
+        mode = str(mode or "").strip().lower()
+        if mode not in {"local", "paused"}:
+            return {"status": "error", "message": f"unsupported detection mode: {mode or '-'}"}, 400
+        if mode == "local":
+            if self.vision is None:
+                return {"status": "error", "message": "local vision is disabled"}, 409
+            if self.camera.status().get("status") != "online":
+                return {"status": "error", "message": "camera stream is not online"}, 409
+            ok, error = self.vision.activate()
+            if not ok:
+                return {"status": "error", "message": error or "local vision is not ready"}, 409
+        else:
+            if self.vision is not None:
+                self.vision.deactivate()
+        result = {"status": "ok", **self.vision_status()}
+        self.realtime.publish({"type": "vision_mode", **result})
+        print(f"[Vision] 实时感知模式 -> {mode}")
+        return result, 200
+
+    def vision_status(self) -> dict:
+        worker = self.vision.status() if self.vision else {
+            "status": "disabled",
+            "source": "local_yolo",
+            "active": False,
+            "error": "vision_disabled",
+        }
+        return {
+            "mode": "local" if worker.get("active") else "paused",
+            "accepting": "local_yolo" if worker.get("active") else "external_or_demo",
+            "vision": worker,
+        }
+
+    def health(self) -> dict:
+        runtime = self.runtime.health()
+        return {
+            "status": "ok",
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "services": {
+                "http": {"status": "ok", "port": self.settings.http_port},
+                "websocket": self.realtime.status(),
+                "llm": runtime["llm"],
+                "notifier": runtime["notifier"],
+                "database": runtime["database"],
+                "approval": runtime["approval"],
+                "actuator": runtime["actuator"],
+                "camera": self.camera.status(),
+                "vision": self.vision.status() if self.vision else {"status": "disabled", "source": "local_yolo"},
+                "detection": self.vision_status(),
+            },
+            "recent_events": runtime["recent_events"],
+            "last_event": runtime["last_event"],
+            "tools": runtime["tools"],
+        }
 
 
-def _timeline(stage: str, label: str, detail: str = "") -> dict:
-    return {
-        "stage": stage,
-        "label": label,
-        "detail": detail,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-
-
-def _remember_event(event_data: dict):
-    """保存最近事件，供前端刷新后恢复状态。按 event_id 合并快速告警和LLM结果。"""
-    _RECENT_STORE.remember(event_data, _new_event_id)
-
-
-def _recent_events(limit: int = 20) -> list:
-    return _RECENT_STORE.recent(limit)
-
-
-camera_worker = CameraStreamWorker(CAMERA_RTSP_URL, CAMERA_JPEG_QUALITY, CAMERA_RECONNECT_SECONDS)
-
-# ===== 去重冷却 =====
-COOLDOWN = {"未戴安全帽": 5, "未穿反光背心": 5, "火焰检测": 3, "车辆检测": 10}
-_last_alarm = {}
-
-TYPE_NAMES = {0: "人员", 1: "安全帽", 2: "反光背心", 3: "火焰", 4: "车辆", 5: "头部"}
-COLORS = {"未戴安全帽": (255, 50, 50), "未穿反光背心": (255, 165, 0),
-          "火焰检测": (255, 0, 0), "车辆检测": (50, 50, 255)}
-
-# 尝试加载中文字体
-_FONT = None
-for _fp in ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/simhei.ttf",
-            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"]:
-    try:
-        _FONT = ImageFont.truetype(_fp, 20)
-        break
-    except Exception:
-        pass
-
-
-def overlap_area(a, b):
-    x1, y1 = max(a["x"], b["x"]), max(a["y"], b["y"])
-    x2, y2 = min(a["x"] + a["width"], b["x"] + b["width"]), min(a["y"] + a["height"], b["y"] + b["height"])
-    if x1 >= x2 or y1 >= y2:
-        return 0.0
-    return (x2 - x1) * (y2 - y1) / (b["width"] * b["height"]) if b["width"] * b["height"] > 0 else 0.0
-
-
-def in_upper_half(person, obj):
-    cx, cy = obj["x"] + obj["width"] / 2, obj["y"] + obj["height"] / 2
-    return (cx >= person["x"] and cx <= person["x"] + person["width"] and
-            cy >= person["y"] and cy <= person["y"] + person["height"] * 0.6)
-
-
-def analyze_frame(obj_list):
-    """分析一帧，返回违规事件列表"""
-    persons = [o for o in obj_list if o["targetType"] == 0]
-    helmets = [o for o in obj_list if o["targetType"] == 1]
-    vests = [o for o in obj_list if o["targetType"] == 2]
-    fires = [o for o in obj_list if o["targetType"] == 3]
-    bikes = [o for o in obj_list if o["targetType"] == 4]
-    events = []
-
-    for person in persons:
-        rect = person["posRect"]
-        conf = person["confidence"] / 10.0
-        has_helmet = any(in_upper_half(rect, h["posRect"]) for h in helmets)
-        has_vest = any(overlap_area(rect, v["posRect"]) > 0.3 for v in vests)
-        if not has_helmet:
-            events.append({"type": "未戴安全帽", "level": "B", "detail": f"人员未佩戴安全帽，置信度 {conf:.1f}%", "bbox": rect})
-        if not has_vest:
-            events.append({"type": "未穿反光背心", "level": "B", "detail": f"人员未穿反光背心，置信度 {conf:.1f}%", "bbox": rect})
-
-    for fire in fires:
-        conf = fire["confidence"] / 10.0
-        events.append({"type": "火焰检测", "level": "A", "detail": f"检测到火焰，置信度 {conf:.1f}%", "bbox": fire["posRect"]})
-
-    for bike in bikes:
-        conf = bike["confidence"] / 10.0
-        events.append({"type": "车辆检测", "level": "C", "detail": f"检测到车辆，置信度 {conf:.1f}%", "bbox": bike["posRect"]})
-
-    return events
-
-
-def _should_report(violation_type, bbox):
-    zone = f"{int(bbox['x']/100)}-{int(bbox['y']/100)}"
-    key = (violation_type, zone)
-    now = time.time()
-    if key in _last_alarm and now - _last_alarm[key] < COOLDOWN.get(violation_type, 5):
-        return False
-    _last_alarm[key] = now
-    return True
-
-
-def annotate_image(img_bytes, events):
-    """在图片上画框和标签"""
-    img = Image.open(io.BytesIO(img_bytes))
-    draw = ImageDraw.Draw(img)
-
-    for e in events:
-        r = e["bbox"]
-        x1, y1 = r["x"], r["y"]
-        x2, y2 = r["x"] + r["width"], r["y"] + r["height"]
-        color = COLORS.get(e["type"], (0, 255, 0))
-
-        # 画框
-        for t in range(3):  # 加粗
-            draw.rectangle([x1 - t, y1 - t, x2 + t, y2 + t], outline=color)
-
-        # 画标签
-        label = f"{e['type']} {e['level']}级"
-        tw = draw.textbbox((0, 0), label, font=_FONT)[2] if _FONT else len(label) * 12
-        draw.rectangle([x1 - 1, y1 - 24, x1 + tw + 5, y1], fill=color)
-        draw.text((x1 + 2, y1 - 23), label, fill=(255, 255, 255), font=_FONT)
-
-    buf = io.BytesIO()
-    img.save(buf, format="JPEG", quality=90)
-    return buf.getvalue()
-
-
-class AlarmHandler(BaseHTTPRequestHandler):
-
-    perception_agent = None
-    safety_agent = None
-    dispatch_agent = None
-    human_loop_tool = None
-    database_tool = None
-    actuator_tool = None
+class ApiHandler(BaseHTTPRequestHandler):
+    app: Application | None = None
 
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Approval-Action")
         self.end_headers()
 
     def do_GET(self):
-        if self.path == "/camera/status":
-            self._send_json(camera_worker.status())
-        elif self.path == "/camera/stream":
-            self._stream_camera()
-        elif self.path == "/health":
-            self._send_json(self._health_snapshot())
-        elif self.path == "/latest_event":
-            events = _recent_events(1)
-            self._send_json(events[0] if events else {})
-        elif self.path.startswith("/recent_alarms"):
-            limit = 20
-            if "?" in self.path:
-                try:
-                    from urllib.parse import parse_qs, urlparse
-                    query = parse_qs(urlparse(self.path).query)
-                    limit = int(query.get("limit", [20])[0])
-                except Exception:
-                    limit = 20
-            self._send_json({"events": _recent_events(limit)})
-        elif self.path.startswith("/alarms/"):
-            fname = os.path.basename(self.path)
-            fpath = os.path.join(ALARM_DIR, fname)
-            if os.path.exists(fpath):
-                self.send_response(200)
-                self.send_header("Content-Type", "image/jpeg")
-                self.end_headers()
-                with open(fpath, "rb") as f:
-                    self.wfile.write(f.read())
-            else:
-                self.send_response(404); self.end_headers()
-        elif self.path == "/latest.jpg":
-            files = sorted([f for f in os.listdir(ALARM_DIR) if f.endswith('.jpg')],
-                           key=lambda x: os.path.getmtime(os.path.join(ALARM_DIR, x)), reverse=True)
-            if files:
-                self.send_response(200)
-                self.send_header("Content-Type", "image/jpeg")
-                self.end_headers()
-                with open(os.path.join(ALARM_DIR, files[0]), "rb") as f:
-                    self.wfile.write(f.read())
-            else:
-                self.send_response(404); self.end_headers()
-        elif self.path == "/approval/pending":
-            pending = self.human_loop_tool.get_pending() if self.human_loop_tool else []
-            self._send_json({"pending": pending})
-        else:
-            self.send_response(404); self.end_headers()
+        app = self._app()
+        path = urlparse(self.path).path
+        if path == "/camera/status":
+            return self._send_json(app.camera.status())
+        if path == "/vision/status":
+            return self._send_json(app.vision_status())
+        if path == "/camera/stream":
+            return self._stream_camera(app)
+        if path == "/health":
+            return self._send_json(app.health())
+        if path == "/latest_event":
+            events = app.runtime.recent_events(1)
+            return self._send_json(events[0] if events else {})
+        if path == "/recent_alarms":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                limit = int(query.get("limit", [20])[0])
+            except (TypeError, ValueError):
+                limit = 20
+            return self._send_json({"events": app.runtime.recent_events(limit)})
+        if path == "/approval/pending":
+            return self._send_json({"pending": app.runtime.pending_approvals()})
+        if path == "/recovery/pending":
+            query = parse_qs(urlparse(self.path).query)
+            try:
+                limit = int(query.get("limit", [50])[0])
+            except (TypeError, ValueError):
+                limit = 50
+            return self._send_json({"pending": app.runtime.pending_recoveries(limit)})
+        if path == "/latest.jpg":
+            images = sorted(app.settings.alarm_dir.glob("*.jpg"), key=lambda item: item.stat().st_mtime, reverse=True)
+            return self._serve_image(images[0] if images else None)
+        if path.startswith("/alarms/"):
+            return self._serve_image(app.settings.alarm_dir / Path(path).name)
+        self.send_response(404)
+        self.end_headers()
 
     def do_POST(self):
-        if self.path in ("/approval/approve", "/approval/reject"):
-            self._handle_approval(self.path.rsplit("/", 1)[-1])
-            return
-        if self.path == "/api/approval":
-            self._handle_approval("approve" if "approve" in (self.headers.get("X-Approval-Action") or "") else "reject")
-            return
-        if self.path == "/demo/trigger":
-            self._handle_demo_trigger()
-            return
-        if self.path != "/alarm":
-            self.send_response(404); self.end_headers(); return
+        app = self._app()
+        path = urlparse(self.path).path
+        if path in {"/approval/approve", "/approval/reject"}:
+            body = self._read_json()
+            result, status = app.runtime.approve(path.rsplit("/", 1)[-1], body)
+            return self._send_json(result, status)
+        if path == "/api/approval":
+            action = "approve" if "approve" in self.headers.get("X-Approval-Action", "") else "reject"
+            result, status = app.runtime.approve(action, self._read_json())
+            return self._send_json(result, status)
+        if path == "/demo/trigger":
+            body = self._read_json()
+            scenario = str(body.get("scenario") or "a_person_vehicle").lower()
+            return self._send_json(app.runtime.trigger_demo(scenario))
+        if path == "/recovery/resolve":
+            result, status = app.runtime.resolve_recovery(self._read_json())
+            return self._send_json(result, status)
+        if path == "/vision/mode":
+            result, status = app.set_detection_mode(self._read_json().get("mode", ""))
+            return self._send_json(result, status)
+        if path == "/alarm":
+            try:
+                body, image = self._read_alarm_payload()
+                return self._send_json(app.ingest_external_detection(body, image))
+            except Exception as exc:
+                print(f"[报警接入] {exc}")
+                return self._send_json({"status": "error", "message": str(exc)}, 500)
+        self.send_response(404)
+        self.end_headers()
 
-        try:
-            content_length = int(self.headers.get("Content-Length", 0))
-            raw_body = self.rfile.read(content_length)
-            content_type = self.headers.get("Content-Type", "")
-            alarm_body = {}
-            img_bytes = b""
+    def _app(self) -> Application:
+        if self.app is None:
+            raise RuntimeError("application not initialized")
+        return self.app
 
-            if "multipart/form-data" in content_type:
-                boundary = content_type.split("boundary=")[1].strip().strip('"')
-                for part in raw_body.split(("--" + boundary).encode()):
-                    if b'name="body"' in part:
-                        h = part.find(b"\r\n\r\n")
-                        if h >= 0:
-                            alarm_body = json.loads(part[h + 4:].rstrip(b"\r\n--").decode("utf-8"))
-                    elif b'name="image"' in part:
-                        h = part.find(b"\r\n\r\n")
-                        if h >= 0:
-                            img_bytes = part[h + 4:].rstrip(b"\r\n--")
-            else:
-                data = json.loads(raw_body.decode("utf-8"))
-                alarm_body = data.get("body", {})
-                img_bytes = base64.b64decode(data.get("image_base64", ""))
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length else b"{}"
+        return json.loads(raw.decode("utf-8") or "{}")
 
-            event = self.perception_agent.process(alarm_body, img_bytes)
-            event.event_id = _new_event_id()
-            event.lifecycle_status = "analyzing"
-
-            filtered = [e for e in event.events if _should_report(e["type"], e["bbox"])]
-            if not filtered:
-                self._send_ok(); return
-            event.events = filtered
-
-            event.timeline = [
-                _timeline("detected", "感知接收", f"{len(filtered)} 项报警进入数字孪生"),
-                _timeline("analyzing", "Agent分析", "安全Agent正在进行视觉语义分析"),
-            ]
-
-            annotated_img = img_bytes
-            if img_bytes:
-                try:
-                    annotated_img = annotate_image(img_bytes, filtered)
-                except Exception as e:
-                    print(f"[标注] 画框失败: {e}")
-            event.image_bytes = annotated_img
-
-            if annotated_img:
-                fname = datetime.now().strftime("alarm_%Y%m%d_%H%M%S_%f.jpg")
-                fpath = os.path.join(ALARM_DIR, fname)
-                with open(fpath, "wb") as f: f.write(annotated_img)
-                base = PUBLIC_URL if "cpolar" in PUBLIC_URL else f"http://10.44.7.147:{LISTEN_PORT}"
-                event.image_url = f"{base}/alarms/{fname}"
-                print(f"  截图: {fpath}")
-
-            print(f"\n{'=' * 60}")
-            print(f"[{event.timestamp}] 报警")
-            for e in filtered:
-                icon = {"A": "🔴", "B": "🟡", "C": "🟢"}.get(e["level"], "⚪")
-                print(f"  {icon} [{e['level']}级] {e['type']}  |  {e['detail']}")
-            print(f"{'=' * 60}\n")
-
-            threading.Thread(target=self._agent_pipeline, args=(event,), daemon=True).start()
-
-            base_ws = PUBLIC_URL if "cpolar" in PUBLIC_URL else f"http://localhost:{LISTEN_PORT}"
-            ws_data = {
-                "type": "alarm",
-                "event_id": event.event_id,
-                "timestamp": event.timestamp,
-                "lifecycle_status": event.lifecycle_status,
-                "timeline": event.timeline,
-                "image_url": f"{base_ws}/alarms/{fname}" if annotated_img else "",
-                "events": [{"type": e["type"], "level": e["level"], "bbox": e["bbox"], "detail": e["detail"], "targetId": e.get("targetId", 0)} for e in filtered]
-            }
-            _remember_event(ws_data)
-            threading.Thread(target=broadcast_event, args=(ws_data,), daemon=True).start()
-
-            self._send_ok()
-
-        except Exception as e:
-            print(f"[错误] {e}")
-            self.send_response(500); self.end_headers()
-
-    def _agent_pipeline(self, event):
-        try: self._do_agent_pipeline(event)
-        except Exception as e:
-            print(f"[Agent管线] 致命错误: {e}")
-            import traceback; traceback.print_exc()
-            event.llm_analysis = event.llm_analysis or f"LLM分析异常: {e}"
-            event_data = {"type": "alarm_with_llm", "event_id": event.event_id, "timestamp": event.timestamp, "events": [{"type": ev["type"], "level": ev["level"], "bbox": ev["bbox"], "detail": ev["detail"], "targetId": ev.get("targetId", 0)} for ev in event.events], "llm_analysis": event.llm_analysis, "actions": event.dispatch_actions}
-            broadcast_event(event_data)
-
-    def _do_agent_pipeline(self, event):
-        done = threading.Event()
-        def _run_safety():
-            try: self.safety_agent.analyze(event)
-            finally: done.set()
-        threading.Thread(target=_run_safety, daemon=True).start()
-        if not done.wait(LLM_TIMEOUT_SECONDS):
-            event.llm_analysis = f"【LLM状态】分析超过 {LLM_TIMEOUT_SECONDS}s，系统已启用规则兜底调度。高危事件仍按确定性安全规则执行。"
-            event.llm_recommendation = {}
-            event.timeline.append(_timeline("llm_timeout", "LLM超时", "启用规则兜底调度"))
-        self.dispatch_agent.dispatch(event)
-        decision = event.dispatch_decision or {}
-        event.lifecycle_status = "pending_approval" if event.approval_status == "pending" else "decided"
-        event.timeline.append(_timeline("decided", "调度裁决", f"规则 {decision.get('rule_level','-')} + LLM {decision.get('llm_level','-') or '-'} -> {decision.get('final_level','-') or '-'}"))
-        if event.dispatch_actions:
-            event.timeline.append(_timeline("tools", "工具执行", "；".join(f"{a.get('tool','')}.{a.get('action','')}" for a in event.dispatch_actions)))
-        if event.approval_status == "pending":
-            event.timeline.append(_timeline("pending_approval", "等待审批", event.approval_id or "已生成审批工单"))
-        event_data = {"type": "alarm_with_llm", "event_id": event.event_id, "timestamp": event.timestamp, "lifecycle_status": event.lifecycle_status, "timeline": event.timeline, "events": [{"type": e["type"], "level": e["level"], "bbox": e["bbox"], "detail": e["detail"], "targetId": e.get("targetId", 0)} for e in event.events], "llm_analysis": event.llm_analysis or "", "llm_recommendation": event.llm_recommendation or {}, "dispatch_decision": event.dispatch_decision or {}, "approval_id": event.approval_id or "", "approval_status": event.approval_status or "auto", "actions": event.dispatch_actions}
-        _remember_event(event_data)
-        broadcast_event(event_data)
-
-    def _handle_approval(self, action):
-        try:
-            if action not in {"approve", "reject"}:
-                self._send_json({"status": "error", "message": f"unsupported approval action: {action}"}, code=400)
-                return
-            content_length = int(self.headers.get("Content-Length", 0))
-            raw = self.rfile.read(content_length) if content_length else b"{}"
+    def _read_alarm_payload(self) -> tuple[dict, bytes]:
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length)
+        content_type = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in content_type:
             data = json.loads(raw.decode("utf-8") or "{}")
-            pending_id = data.get("approval_id") or data.get("pending_id") or data.get("id") or ""
-            if not pending_id or not self.human_loop_tool:
-                self._send_json({"status": "error", "message": "approval_id missing"}, code=400); return
-            order = self.human_loop_tool._load_order(pending_id)
-            if not order:
-                self._send_json({"status": "error", "message": f"approval order not found: {pending_id}"}, code=404)
-                return
-            current_status = order.get("status", "pending")
-            if current_status != "pending":
-                self._send_json({"status": "error", "message": f"approval order already {current_status}: {pending_id}"}, code=409)
-                return
-            result = self.human_loop_tool.handle(pending_id, action)
-            status = "approved" if action == "approve" else "rejected"
-            order = self.human_loop_tool._load_order(pending_id) or order
-            event_id = data.get("event_id") or order.get("event_id", "")
-            operator = data.get("operator") or "frontend"
-            comment = data.get("comment") or ""
-            detail = f"{operator} {result}" + (f"；备注：{comment}" if comment else "")
-            timeline_step = _timeline(status, "人工审批", detail)
-            db_persisted = False
-            if self.database_tool:
-                db_persisted = self.database_tool.update_approval_status(event_id, pending_id, status, timeline_step)
-            execution = {}
-            execution_db_persisted = False
-            execution_step = None
-            if self.actuator_tool:
-                execution = self.actuator_tool.handle(order, "execute" if action == "approve" else "cancel")
-                execution_step = _timeline(
-                    execution.get("status", "execution"),
-                    "执行回写",
-                    execution.get("detail", "")
-                )
-                if self.database_tool:
-                    execution_db_persisted = self.database_tool.update_execution_status(
-                        event_id, pending_id, execution, execution_step
-                    )
-            lifecycle_status = "executed" if execution.get("status") == "executed" else status
-            msg = {
-                "type": "approval_result",
-                "event_id": event_id,
-                "approval_id": pending_id,
-                "approval_status": status,
-                "lifecycle_status": lifecycle_status,
-                "result": result,
-                "operator": operator,
-                "comment": comment,
-                "db_persisted": db_persisted,
-                "execution_id": execution.get("execution_id", ""),
-                "execution_status": execution.get("status", ""),
-                "execution_result": execution.get("detail", ""),
-                "execution_actions": execution.get("commands", []) or [],
-                "execution_db_persisted": execution_db_persisted,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "timeline": [step for step in [timeline_step, execution_step] if step],
-            }
-            print(f"[Approval] {pending_id} -> {status} event={event_id or '-'} db={db_persisted} exec={execution.get('status','-')}")
-            _remember_event(msg)
-            broadcast_event(msg)
-            self._send_json({"status": "ok", **msg})
-        except Exception as e:
-            self._send_json({"status": "error", "message": str(e)}, code=500)
+            return data.get("body", {}), base64.b64decode(data.get("image_base64", ""))
 
-    def _handle_demo_trigger(self):
-        try:
-            content_length = int(self.headers.get("Content-Length", 0))
-            raw = self.rfile.read(content_length) if content_length else b"{}"
-            data = json.loads(raw.decode("utf-8") or "{}")
-            scenario = str(data.get("scenario") or "a_person_vehicle").lower()
-            alarm_body = demo_alarm_body(scenario)
-            scenario = alarm_body.get("scenario", scenario)
-            img_bytes = demo_image(alarm_body, scenario)
+        boundary = content_type.split("boundary=", 1)[1].strip().strip('"').encode()
+        body, image = {}, b""
+        for part in raw.split(b"--" + boundary):
+            marker = part.find(b"\r\n\r\n")
+            if marker < 0:
+                continue
+            content = part[marker + 4:].rstrip(b"\r\n-")
+            if b'name="body"' in part:
+                body = json.loads(content.decode("utf-8"))
+            elif b'name="image"' in part:
+                image = content
+        return body, image
 
-            event = self.perception_agent.process(alarm_body, img_bytes)
-            event.event_id = _new_event_id()
-            event.lifecycle_status = "analyzing"
-            event.events = event.events or []
-            if not event.events:
-                self._send_json({"status": "filtered", "scenario": scenario, "message": "demo produced no reportable event"})
-                return
-
-            event.timeline = [
-                _timeline("detected", "演示回放", f"{scenario} 样例进入数字孪生管线"),
-                _timeline("analyzing", "Agent分析", "演示事件正在复用真实Agent管线"),
-            ]
-
-            annotated_img = annotate_image(img_bytes, event.events)
-            event.image_bytes = annotated_img
-            fname = datetime.now().strftime("demo_%Y%m%d_%H%M%S_%f.jpg")
-            fpath = os.path.join(ALARM_DIR, fname)
-            with open(fpath, "wb") as f:
-                f.write(annotated_img)
-            base = PUBLIC_URL if "cpolar" in PUBLIC_URL else f"http://10.44.7.147:{LISTEN_PORT}"
-            event.image_url = f"{base}/alarms/{fname}"
-            print(f"[Demo] {scenario} -> {len(event.events)} events, screenshot={fpath}")
-
-            threading.Thread(target=self._agent_pipeline, args=(event,), daemon=True).start()
-
-            base_ws = PUBLIC_URL if "cpolar" in PUBLIC_URL else f"http://localhost:{LISTEN_PORT}"
-            ws_data = {
-                "type": "alarm",
-                "event_id": event.event_id,
-                "timestamp": event.timestamp,
-                "source": f"demo:{scenario}",
-                "lifecycle_status": event.lifecycle_status,
-                "timeline": event.timeline,
-                "image_url": f"{base_ws}/alarms/{fname}",
-                "events": [
-                    {"type": e["type"], "level": e["level"], "bbox": e["bbox"], "detail": e["detail"], "targetId": e.get("targetId", 0)}
-                    for e in event.events
-                ],
-            }
-            _remember_event(ws_data)
-            threading.Thread(target=broadcast_event, args=(ws_data,), daemon=True).start()
-            self._send_json({"status": "ok", "scenario": scenario, "event_id": event.event_id, "events": len(event.events)})
-        except Exception as e:
-            print(f"[Demo] failed: {e}")
-            self._send_json({"status": "error", "message": str(e)}, code=500)
-
-    def _stream_camera(self):
-        if not CAMERA_RTSP_URL:
-            self._send_json({"status": "error", "message": "CAMERA_RTSP_URL not configured"}, code=503)
-            return
+    def _stream_camera(self, app: Application) -> None:
+        if not app.settings.camera_rtsp_url:
+            return self._send_json({"status": "error", "message": "CAMERA_RTSP_URL not configured"}, 503)
         self.send_response(200)
         self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
         self.send_header("Cache-Control", "no-cache")
@@ -506,192 +261,74 @@ class AlarmHandler(BaseHTTPRequestHandler):
         last_frame = b""
         try:
             while True:
-                frame = camera_worker.latest()
-                if not frame:
-                    time.sleep(0.2)
-                    continue
-                if frame == last_frame:
+                frame = app.camera.latest()
+                if not frame or frame == last_frame:
                     time.sleep(0.03)
                     continue
                 last_frame = frame
-                self.wfile.write(b"--frame\r\n")
-                self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                self.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\n")
                 self.wfile.write(f"Content-Length: {len(frame)}\r\n\r\n".encode("ascii"))
                 self.wfile.write(frame)
                 self.wfile.write(b"\r\n")
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError):
             return
-        except Exception as e:
-            print(f"[Camera] MJPEG stream closed: {e}")
+        except Exception as exc:
+            print(f"[Camera] MJPEG stream closed: {exc}")
 
-    def _health_snapshot(self):
-        pending = self.human_loop_tool.get_pending() if self.human_loop_tool else []
-        db_stats = self.database_tool.get_stats() if self.database_tool else {}
-        recent = _recent_events(10)
-        return {
-            "status": "ok",
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "services": {
-                "http": {"status": "ok", "port": LISTEN_PORT},
-                "websocket": {"status": "ok" if HAS_WS else "disabled", "port": _WS_PORT, "clients": len(_ws_clients)},
-                "llm": {"status": "configured" if LLM_MODE else "disabled", "mode": LLM_MODE, "model": OLLAMA_MODEL, "timeout_seconds": LLM_TIMEOUT_SECONDS},
-                "database": {"status": "ok" if self.database_tool else "missing", **db_stats},
-                "approval": {"status": "ok" if self.human_loop_tool else "missing", "pending": len(pending)},
-                "actuator": self.actuator_tool.status() if self.actuator_tool else {"status": "missing"},
-                "camera": camera_worker.status(),
-            },
-            "recent_events": len(recent),
-            "last_event": recent[0] if recent else {},
-            "tools": sorted(list(self.dispatch_agent.tools.keys())) if self.dispatch_agent else [],
-        }
+    def _serve_image(self, path: Path | None) -> None:
+        if path is None or not path.exists() or not path.is_file():
+            self.send_response(404)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.end_headers()
+        self.wfile.write(path.read_bytes())
 
-    def _send_ok(self): self._send_json({"status": "ok"})
-    def _send_json(self, data, code=200):
-        self.send_response(code)
+    def _send_json(self, data: dict, status: int = 200) -> None:
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
-    def log_message(self, format, *args): pass
 
-
-# ===== WebSocket 广播 =====
-import asyncio
-import queue
-try:
-    import websockets
-    HAS_WS = True
-except ImportError:
-    HAS_WS = False
-
-_WS_PORT = 5001
-_broadcast_queue = queue.Queue()  # 线程安全队列
-_ws_clients = set()
-
-
-def broadcast_event(event_data):
-    """将报警事件放入广播队列（JSON 格式）"""
-    _broadcast_queue.put(json.dumps(event_data, ensure_ascii=False))
-
-
-async def _ws_handler(websocket):
-    """WebSocket 客户端连接处理"""
-    _ws_clients.add(websocket)
-    print(f"[WS] 前端已连接，当前连接数: {len(_ws_clients)}")
-    try:
-        await websocket.wait_closed()
-    finally:
-        _ws_clients.discard(websocket)
-        print(f"[WS] 前端已断开，当前连接数: {len(_ws_clients)}")
-
-
-async def _broadcast_loop():
-    """把队列中的事件广播给所有已连接前端，避免多个页面抢消息。"""
-    while True:
-        try:
-            msg = _broadcast_queue.get(timeout=0.1)
-        except queue.Empty:
-            await asyncio.sleep(0.05)
-            continue
-
-        if not _ws_clients:
-            print("[WS] 无前端连接，丢弃一条待推送事件")
-            continue
-
-        print(f"[WS] 广播事件到 {len(_ws_clients)} 个前端")
-        dead = []
-        for client in list(_ws_clients):
-            try:
-                await client.send(msg)
-            except Exception:
-                dead.append(client)
-        for client in dead:
-            _ws_clients.discard(client)
-
-
-async def _start_ws():
-    """启动 WebSocket 服务器"""
-    server = await websockets.serve(_ws_handler, "0.0.0.0", _WS_PORT)
-    print(f"[WS] WebSocket 广播端口: {_WS_PORT}")
-    asyncio.create_task(_broadcast_loop())
-    await asyncio.Future()  # 永久运行
-
-
-def _run_ws_server():
-    """在独立线程中启动 WebSocket 服务"""
-    if not HAS_WS:
-        print("[WS] websockets 库未安装，跳过")
+    def log_message(self, format, *args):
         return
-    asyncio.run(_start_ws())
 
 
-def main():
-    # 先清理可能残留的端口占用
-    import socket
-    for p in [LISTEN_PORT, _WS_PORT]:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            s.bind(('0.0.0.0', p))
-            s.close()
-        except OSError:
-            print(f"[Warn] 端口 {p} 被占用，请手动关闭旧进程: taskkill /F /IM python.exe")
-            s.close()
+def _warn_if_port_busy(port: int) -> None:
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        probe.bind(("0.0.0.0", port))
+    except OSError:
+        print(f"[Warn] 端口 {port} 已被占用，请先关闭旧服务")
+    finally:
+        probe.close()
+
+
+def main() -> None:
+    settings = Settings.from_env()
+    _warn_if_port_busy(settings.http_port)
+    _warn_if_port_busy(settings.websocket_port)
+    app = Application(settings)
+    ApiHandler.app = app
 
     print(f"""
 ╔══════════════════════════════════════════╗
-║     研电赛 - 智能安全监控后端           ║
-║  报警接收: {LISTEN_PORT}  截图: {ALARM_DIR}         ║
-║  3D推送: {_WS_PORT}  前端: frontend/index.html   ║
+║       工业安全智能体后端                 ║
+║  本地推理: RTSP + YOLO  截图: alarms/    ║
+║  前端: http://localhost:8080             ║
+║  后端: http://localhost:{settings.http_port}                ║
+║  WebSocket: ws://localhost:{settings.websocket_port}          ║
 ╚══════════════════════════════════════════╝
 """)
-
-    # ---- 初始化智能体系统 ----
-    print("[Agent] 初始化智能体管线...")
-
-    # 记忆模块
-    memory = MemoryModule("./data/alarms.db")
-
-    # 工具
-    db = DatabaseTool("./data/alarms.db")
-    human_loop = HumanLoopTool("./data/pending")
-    notifier = NotifierTool(webhook_url=NOTIFY_WEBHOOK, platform=NOTIFY_PLATFORM)
-    reporter = ReporterTool("./data/reports")
-    actuator = ActuatorTool("./data/executions")
-
-    # 智能体（安全Agent包含记忆模块）
-    perception = PerceptionAgent()
-    safety = SafetyAgent(mode=LLM_MODE, model=OLLAMA_MODEL, memory=memory)
-    dispatch = DispatchAgent()
-
-    # 注册工具到调度Agent（含人机协同审批）
-    dispatch.register_tool("human_loop", lambda e, a: human_loop.handle(e, a))
-    dispatch.register_tool("database", lambda e, a: db.handle(e, a))
-    dispatch.register_tool("notifier", lambda e, a: notifier.handle(e, a))
-    dispatch.register_tool("reporter", lambda e, a: reporter.handle(e, a))
-
-    # 注入到 HTTP Handler
-    AlarmHandler.perception_agent = perception
-    AlarmHandler.safety_agent = safety
-    AlarmHandler.dispatch_agent = dispatch
-    AlarmHandler.human_loop_tool = human_loop
-    AlarmHandler.database_tool = db
-    AlarmHandler.actuator_tool = actuator
-
-    print(f"[Agent] 感知 → 安全({LLM_MODE}+记忆) → 调度({len(dispatch.tools)}工具+可信审批) 就绪")
-    stats = db.get_stats()
+    print("[Agent] 初始化: 感知 -> 安全LLM -> 调度 -> 可信审批 -> 执行回写")
+    stats = app.runtime.database.get_stats()
     print(f"[DB] 历史报警: {stats['total']} 条 (A:{stats['A']} B:{stats['B']} 今日:{stats['today']})")
-
-    # ---- 启动服务 ----
-    if HAS_WS:
-        threading.Thread(target=_run_ws_server, daemon=True).start()
-    if CAMERA_RTSP_URL:
-        camera_worker.start()
-        print("[Camera] RTSP 子码流接入已启动")
-    else:
-        print("[Camera] 未配置 CAMERA_RTSP_URL，实时视频流禁用")
-    ThreadingHTTPServer(("0.0.0.0", LISTEN_PORT), AlarmHandler).serve_forever()
+    app.start()
+    ThreadingHTTPServer(("0.0.0.0", settings.http_port), ApiHandler).serve_forever()
 
 
 if __name__ == "__main__":
