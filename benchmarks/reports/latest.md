@@ -8,7 +8,7 @@
 - Forbidden-action block rate: 100.0%
 - Fallback success rate: 100.0%
 - High-risk approval policy: 100.0%
-- Policy latency P50/P95: 0.021 / 0.376 ms
+- Policy latency P50/P95: 0.021 / 0.169 ms
 
 | Case | Category | Result | Final level | Rejected actions |
 |---|---|---:|---:|---|

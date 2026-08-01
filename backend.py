@@ -15,6 +15,7 @@ from services.agent_runtime import AgentRuntime
 from services.camera_stream import CameraStreamWorker
 from services.local_vision import LocalVisionWorker
 from services.realtime import RealtimeBroadcaster
+from services.run_store import IngestConflictError
 
 
 class Application:
@@ -67,8 +68,13 @@ class Application:
     def _ingest_local_detection(self, body: dict, image: bytes) -> dict:
         return self.runtime.ingest_detection(body, image, source="local_yolo")
 
-    def ingest_external_detection(self, body: dict, image: bytes) -> dict:
-        return self.runtime.ingest_detection(body, image, source="external")
+    def ingest_external_detection(self, body: dict, image: bytes,
+                                  source_event_id: str = "") -> dict:
+        if not source_event_id:
+            return self.runtime.ingest_detection(body, image, source="external")
+        return self.runtime.ingest_detection(
+            body, image, source="external", source_event_id=source_event_id,
+        )
 
     def _publish_vision_frame(self, message: dict) -> None:
         payload = dict(message)
@@ -147,7 +153,10 @@ class ApiHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Approval-Action")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, X-Approval-Action, Idempotency-Key",
+        )
         self.end_headers()
 
     def do_GET(self):
@@ -212,7 +221,20 @@ class ApiHandler(BaseHTTPRequestHandler):
         if path == "/alarm":
             try:
                 body, image = self._read_alarm_payload()
-                return self._send_json(app.ingest_external_detection(body, image))
+                source_event_id = self._resolve_source_event_id(body)
+                return self._send_json(
+                    app.ingest_external_detection(body, image, source_event_id=source_event_id)
+                )
+            except IngestConflictError as exc:
+                print(f"[报警接入] 幂等键冲突: {exc}")
+                return self._send_json({
+                    "status": "error",
+                    "error": "idempotency_conflict",
+                    "message": str(exc),
+                }, 409)
+            except ValueError as exc:
+                print(f"[报警接入] 请求无效: {exc}")
+                return self._send_json({"status": "error", "message": str(exc)}, 400)
             except Exception as exc:
                 print(f"[报警接入] {exc}")
                 return self._send_json({"status": "error", "message": str(exc)}, 500)
@@ -249,6 +271,18 @@ class ApiHandler(BaseHTTPRequestHandler):
             elif b'name="image"' in part:
                 image = content
         return body, image
+
+    def _resolve_source_event_id(self, body: dict) -> str:
+        header_value = str(self.headers.get("Idempotency-Key", "") or "").strip()
+        body_value = str(
+            body.get("source_event_id") or body.get("sourceEventId") or ""
+        ).strip()
+        if header_value and body_value and header_value != body_value:
+            raise ValueError("Idempotency-Key and source_event_id must match")
+        value = header_value or body_value
+        if len(value) > 256:
+            raise ValueError("source_event_id must not exceed 256 characters")
+        return value
 
     def _stream_camera(self, app: Application) -> None:
         if not app.settings.camera_rtsp_url:

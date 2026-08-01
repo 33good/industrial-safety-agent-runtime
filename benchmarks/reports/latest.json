@@ -2,7 +2,7 @@
   "benchmark": "industrial-agent-policy-v1",
   "scope": "post-perception policy, guardrails, and deterministic fallback",
   "dataset": "benchmarks\\datasets\\agent_policy_cases.jsonl",
-  "generated_at": "2026-08-01T04:38:23.210973+00:00",
+  "generated_at": "2026-08-01T05:27:04.749196+00:00",
   "summary": {
     "cases": 12,
     "passed": 12,
@@ -16,9 +16,9 @@
     "fallback_success_rate_pct": 100.0,
     "high_risk_approval_policy_pct": 100.0,
     "policy_latency_ms": {
-      "mean": 0.054,
+      "mean": 0.036,
       "p50": 0.021,
-      "p95": 0.376
+      "p95": 0.169
     }
   },
   "results": [
@@ -35,7 +35,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.376,
+      "latency_ms": 0.169,
       "actual": {
         "structured_valid": true,
         "rule_level": "B",
@@ -64,7 +64,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.058,
+      "latency_ms": 0.049,
       "actual": {
         "structured_valid": true,
         "rule_level": "A",
@@ -93,7 +93,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.028,
+      "latency_ms": 0.027,
       "actual": {
         "structured_valid": true,
         "rule_level": "C",
@@ -120,7 +120,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.021,
+      "latency_ms": 0.02,
       "actual": {
         "structured_valid": true,
         "rule_level": "A",
@@ -207,7 +207,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.019,
+      "latency_ms": 0.017,
       "actual": {
         "structured_valid": false,
         "rule_level": "B",
@@ -324,7 +324,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.025,
+      "latency_ms": 0.024,
       "actual": {
         "structured_valid": true,
         "rule_level": "B",

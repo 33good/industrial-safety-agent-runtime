@@ -26,7 +26,7 @@ agents/                     感知、安全分析、调度、历史记忆、SOP 
 services/camera_stream.py   RTSP 单次拉流与最新帧缓存
 services/local_vision.py    本地 YOLO、目标 ID 和事件稳定化
 services/agent_runtime.py   Agent 编排、审批、证据、事件回写
-services/run_store.py       Run 状态机、事件快照、迁移审计与恢复数据
+services/run_store.py       入口幂等、Run 状态机、事件快照、迁移审计与恢复数据
 services/tool_executor.py   幂等工具执行、有限重试与结果持久化
 services/realtime.py        WebSocket 广播
 services/evidence.py        告警证据图标注与保存
@@ -175,11 +175,20 @@ POST /approval/approve    审批通过
 POST /approval/reject     审批驳回
 POST /recovery/resolve    人工重试分析或审计结案
 POST /demo/trigger        回放样例，复用完整 Agent 管线
-POST /alarm               通用外部事件接入接口
+POST /alarm               通用外部事件接入接口，支持入口幂等
 WS   :5001                前端告警、研判、审批状态广播
 ```
 
-`POST /alarm` 是与硬件厂商无关的调试/集成入口；本地摄像头主链路由 `LocalVisionWorker` 直接调用 `AgentRuntime.ingest_detection()`。
+`POST /alarm` 是与硬件厂商无关的调试/集成入口；本地摄像头主链路由 `LocalVisionWorker` 直接调用 `AgentRuntime.ingest_detection()`。外部系统可在请求体提供 `source_event_id`，或发送同值的 `Idempotency-Key` 请求头。Runtime 根据服务端确定的 `source`、规范化 `camera_id` 和 `source_event_id` 生成入口幂等键：首次请求返回 `reused: false`，重复请求返回原有 `event_id/run_id/trace_id` 和 `reused: true`，不会再次保存证据、广播告警或启动 Agent 线程。同一幂等键对应不同载荷时返回 HTTP 409；不提供幂等标识时保持原有兼容行为。
+
+```powershell
+curl.exe -X POST http://127.0.0.1:5000/alarm `
+  -H "Content-Type: application/json" `
+  -H "Idempotency-Key: camera-01-alarm-20260801-001" `
+  -d '{"body":{"cameraId":"camera-01","objInfo":[{"targetType":0,"targetId":301,"confidence":94,"posRect":{"x":360,"y":520,"width":90,"height":210}}]}}'
+```
+
+该最小载荷表示检测到一名未关联到安全帽/反光背心的人员，会触发 B 级 PPE 事件。即使请求没有形成安全事件或被冷却策略过滤，只要提供了幂等标识，系统也会保存终态为 `filtered` 的轻量 Run；重复请求仍返回同一组 ID 和 `reused: true`。未提供幂等标识的过滤请求不会创建 Run，以维持旧接口行为。
 
 ## Agent Benchmark
 
@@ -217,7 +226,7 @@ SOP 目录为每个片段保存 `document_id`、章节、版本、生效日期�
 
 ## Runtime 可靠性边界
 
-每次事件处理分配独立的 `event_id`、`run_id` 与 `trace_id`。`RunStore` 持久化事件快照以及 `analyzing → decided → executing → waiting_approval/succeeded` 状态迁移，并审计迁移来源、目标、阶段、原因和版本。
+每个首次接收的业务事件分配独立的 `event_id`、`run_id` 与 `trace_id`。提供上游事件标识时，`agent_runs.ingest_key` 的 SQLite 部分唯一索引通过原子 `INSERT ... ON CONFLICT DO NOTHING` 保证并发请求只有一个创建者；其余请求复用原 Run。载荷摘要同时持久化，用于拒绝同 Key 异载荷。`RunStore` 继续持久化事件快照以及 `analyzing → decided → executing → waiting_approval/succeeded` 状态迁移，并审计迁移来源、目标、阶段、原因和版本。
 
 工具执行由统一 `ToolExecutor` 管理，并将 `step_id`、`execution_id`、幂等键、尝试次数、结果和错误类型持久化到 SQLite。仅对能够证明安全的动作进行有限重试；通知、审批和报告等外部副作用不会在结果不确定时盲目重放。同一动作成功后会复用已保存结果，审批后的执行也使用稳定执行 ID 防止重复处置。
 
@@ -225,8 +234,8 @@ SOP 目录为每个片段保存 `document_id`、章节、版本、生效日期�
 
 进程启动时会审计未完成 Run：无工具副作用的任务可安全重放分析；部分成功的工具步骤会复用既有结果并补齐未执行步骤；全部工具成功但状态未落盘时直接对账完成；结果不确定或失败的外部动作进入 `manual_takeover`，通过恢复 API 审计结案。`retry_analysis` 仅允许用于没有工具执行历史的 Run。
 
-当前实现提供单节点 SQLite 下的持久恢复语义，不宣称分布式 exactly-once。多副本租约、跨服务事务和外部系统幂等键仍属于后续生产化工作。
+当前实现提供单节点 SQLite 下的入口去重和持久恢复语义，不宣称分布式 exactly-once。线程并发回归覆盖20次顺序重复提交、20线程并发提交、20个独立 SQLite 连接竞争、过滤结果复用、来源/摄像头隔离、异 JSON/图片载荷冲突及无幂等键兼容路径，并验证每条工具副作用链只执行一次。这里的独立连接仍运行在同一操作系统进程中，不等同于真实多进程验证。多副本租约、fencing token、跨服务事务和外部接收方幂等仍属于后续生产化工作。
 
 ## 当前与后续
 
-当前仓库只保留通用 RTSP、本地 YOLO26、通用事件入口和 Agent Runtime 主线。下一阶段按优先级扩充匿名化真实场景集、增加多轮重复评测与引用语义一致性检查，再完善多进程租约和外部通知幂等。
+当前仓库只保留通用 RTSP、本地 YOLO26、通用事件入口和 Agent Runtime 主线。下一阶段先增加多进程租约、fencing token 与真实强杀恢复验证，再补齐 Trace 自动校验，随后扩充匿名化真实场景集和多轮重复评测。

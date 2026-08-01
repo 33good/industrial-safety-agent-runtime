@@ -28,7 +28,9 @@ def run_step(name: str, arguments: list[str], environment: dict[str, str]) -> di
     )
     return {
         "name": name,
-        "command": " ".join([sys.executable, "-B", *arguments]),
+        # Keep committed reports portable; subprocess execution still uses the
+        # current interpreter selected above.
+        "command": " ".join(["python", "-B", *arguments]),
         "exit_code": completed.returncode,
         "duration_seconds": round(time.perf_counter() - started, 3),
         "passed": completed.returncode == 0,

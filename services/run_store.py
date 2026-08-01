@@ -13,7 +13,7 @@ from agents import AlarmEvent
 
 
 ACTIVE_STATUSES = {"analyzing", "decided", "executing", "retryable_failed"}
-FINAL_STATUSES = {"succeeded", "permanent_failed", "cancelled"}
+FINAL_STATUSES = {"filtered", "succeeded", "permanent_failed", "cancelled"}
 ALLOWED_TRANSITIONS = {
     "analyzing": {"decided", "retryable_failed", "manual_takeover"},
     "decided": {"executing", "retryable_failed", "manual_takeover"},
@@ -24,6 +24,14 @@ ALLOWED_TRANSITIONS = {
 }
 
 
+class IngestConflictError(RuntimeError):
+    """The same ingress identity was reused with a different request payload."""
+
+    def __init__(self, ingest_key: str):
+        super().__init__("idempotency key was already used for a different payload")
+        self.ingest_key = ingest_key
+
+
 def event_snapshot(event: AlarmEvent) -> dict:
     """Serialize the restart-safe part of an event; image bytes stay in evidence storage."""
     return {
@@ -32,6 +40,10 @@ def event_snapshot(event: AlarmEvent) -> dict:
         "event_id": event.event_id,
         "run_id": event.run_id,
         "trace_id": event.trace_id,
+        "source_event_id": event.source_event_id,
+        "ingest_key": event.ingest_key,
+        "ingest_payload_hash": event.ingest_payload_hash,
+        "camera_id": event.camera_id,
         "raw_json": event.raw_json,
         "image_url": event.image_url,
         "llm_analysis": event.llm_analysis,
@@ -60,6 +72,10 @@ def restore_event(snapshot: dict, alarm_dir: Path | None = None) -> AlarmEvent:
         event_id=str(snapshot.get("event_id") or ""),
         run_id=str(snapshot.get("run_id") or ""),
         trace_id=str(snapshot.get("trace_id") or ""),
+        source_event_id=str(snapshot.get("source_event_id") or ""),
+        ingest_key=str(snapshot.get("ingest_key") or ""),
+        ingest_payload_hash=str(snapshot.get("ingest_payload_hash") or ""),
+        camera_id=str(snapshot.get("camera_id") or ""),
         raw_json=dict(snapshot.get("raw_json") or {}),
         image_url=str(snapshot.get("image_url") or ""),
         llm_analysis=snapshot.get("llm_analysis"),
@@ -112,6 +128,10 @@ class RunStore:
                     trace_id TEXT NOT NULL,
                     event_id TEXT NOT NULL,
                     source TEXT,
+                    source_event_id TEXT,
+                    ingest_key TEXT,
+                    ingest_payload_hash TEXT,
+                    camera_id TEXT,
                     status TEXT NOT NULL,
                     stage TEXT NOT NULL,
                     version INTEGER NOT NULL DEFAULT 1,
@@ -138,22 +158,90 @@ class RunStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_runs_event ON agent_runs(event_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_run_transitions_run ON run_transitions(run_id)")
 
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(agent_runs)").fetchall()}
+            migrations = {
+                "source_event_id": "ALTER TABLE agent_runs ADD COLUMN source_event_id TEXT",
+                "ingest_key": "ALTER TABLE agent_runs ADD COLUMN ingest_key TEXT",
+                "ingest_payload_hash": "ALTER TABLE agent_runs ADD COLUMN ingest_payload_hash TEXT",
+                "camera_id": "ALTER TABLE agent_runs ADD COLUMN camera_id TEXT",
+            }
+            for name, sql in migrations.items():
+                if name not in columns:
+                    conn.execute(sql)
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_runs_ingest_key "
+                "ON agent_runs(ingest_key) WHERE ingest_key IS NOT NULL"
+            )
+
     def create(self, event: AlarmEvent, source: str) -> None:
+        run, created = self.create_or_get(event, source)
+        if not created:
+            raise RuntimeError(f"run_already_exists:{run['run_id']}")
+
+    def create_or_get(self, event: AlarmEvent, source: str, *,
+                      initial_status: str = "analyzing",
+                      initial_stage: str = "analysis",
+                      transition_detail: str = "run_created") -> tuple[dict, bool]:
+        """Atomically create a Run or return the Run owning this ingress identity.
+
+        Correctness relies on the SQLite unique index, not on a query-before-insert
+        sequence. A null ingest key preserves the legacy create-every-time behavior.
+        """
+        if initial_status not in {"analyzing", "filtered"}:
+            raise ValueError(f"unsupported_initial_run_status:{initial_status}")
         now = datetime.now().isoformat()
         payload = json.dumps(event_snapshot(event), ensure_ascii=False, default=str)
         with self._lock, self._connection() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 "INSERT INTO agent_runs "
-                "(run_id,trace_id,event_id,source,status,stage,event_json,created_at,updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
-                (event.run_id, event.trace_id, event.event_id, source, "analyzing", "analysis",
-                 payload, now, now),
+                "(run_id,trace_id,event_id,source,source_event_id,ingest_key,"
+                "ingest_payload_hash,camera_id,status,stage,event_json,created_at,updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
+                (
+                    event.run_id, event.trace_id, event.event_id, source,
+                    event.source_event_id or None, event.ingest_key or None,
+                    event.ingest_payload_hash or None, event.camera_id or None,
+                    initial_status, initial_stage, payload, now, now,
+                ),
             )
-            conn.execute(
-                "INSERT INTO run_transitions "
-                "(run_id,from_status,to_status,stage,detail,created_at) VALUES (?,?,?,?,?,?)",
-                (event.run_id, None, "analyzing", "analysis", "run_created", now),
-            )
+            created = cursor.rowcount == 1
+            if created:
+                conn.execute(
+                    "INSERT INTO run_transitions "
+                    "(run_id,from_status,to_status,stage,detail,created_at) VALUES (?,?,?,?,?,?)",
+                    (
+                        event.run_id, None, initial_status, initial_stage,
+                        transition_detail, now,
+                    ),
+                )
+                row = conn.execute(
+                    "SELECT * FROM agent_runs WHERE run_id=?", (event.run_id,)
+                ).fetchone()
+            elif event.ingest_key:
+                row = conn.execute(
+                    "SELECT * FROM agent_runs WHERE ingest_key=?", (event.ingest_key,)
+                ).fetchone()
+                if row is not None and str(row["ingest_payload_hash"] or "") != event.ingest_payload_hash:
+                    raise IngestConflictError(event.ingest_key)
+            else:
+                row = None
+
+            if row is None:
+                raise RuntimeError("agent_run_insert_conflict_without_ingest_owner")
+            result = self._decode_row(row)
+        return result or {}, created
+
+    def get_by_ingest_key(self, ingest_key: str, payload_hash: str = "") -> dict | None:
+        if not ingest_key:
+            return None
+        with self._lock, self._connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM agent_runs WHERE ingest_key=?", (ingest_key,)
+            ).fetchone()
+        result = self._decode_row(row)
+        if result and payload_hash and str(result.get("ingest_payload_hash") or "") != payload_hash:
+            raise IngestConflictError(ingest_key)
+        return result
 
     def get(self, run_id: str) -> dict | None:
         with self._lock, self._connection() as conn:

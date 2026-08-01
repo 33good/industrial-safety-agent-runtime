@@ -17,6 +17,10 @@ class AlarmEvent:
     event_id: str = ""
     run_id: str = ""
     trace_id: str = ""
+    source_event_id: str = ""
+    ingest_key: str = ""
+    ingest_payload_hash: str = ""
+    camera_id: str = ""
     raw_json: dict = field(default_factory=dict)
     image_bytes: bytes = b""
     image_url: str = ""

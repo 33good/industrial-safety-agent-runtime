@@ -1,6 +1,8 @@
 """Application service that owns the safety Agent lifecycle."""
 import copy
 from datetime import datetime
+import hashlib
+import json
 from pathlib import Path
 import threading
 import time
@@ -127,24 +129,95 @@ class AgentRuntime:
         )
         self._last_report = {}
         self._report_lock = threading.Lock()
+        # Fixed stripes avoid an unbounded per-event lock cache. SQLite remains the
+        # source of truth for uniqueness across processes; these locks only keep
+        # duplicate requests in this process from doing redundant preprocessing.
+        self._ingest_locks = [threading.Lock() for _ in range(64)]
 
-    def ingest_detection(self, body: dict, image_bytes: bytes, source: str = "external") -> dict:
+    def ingest_detection(self, body: dict, image_bytes: bytes, source: str = "external",
+                         source_event_id: str = "") -> dict:
         """Accept a normalized detector payload and dispatch only stable incidents."""
         body = dict(body or {})
+        source_event_id = str(
+            source_event_id
+            or body.get("source_event_id")
+            or body.get("sourceEventId")
+            or ""
+        ).strip()
+        camera_id = str(
+            body.get("camera_id") or body.get("cameraId") or self.settings.camera_id
+        ).strip() or self.settings.camera_id
+        ingest_key, payload_hash = self._ingress_identity(
+            source, camera_id, source_event_id, body, image_bytes
+        )
+        lock = self._ingest_locks[int(ingest_key[:8], 16) % len(self._ingest_locks)] if ingest_key else None
+        if lock is not None:
+            with lock:
+                return self._ingest_detection_once(
+                    body, image_bytes, source, source_event_id, camera_id,
+                    ingest_key, payload_hash,
+                )
+        return self._ingest_detection_once(
+            body, image_bytes, source, source_event_id, camera_id, ingest_key, payload_hash,
+        )
+
+    def _ingest_detection_once(self, body: dict, image_bytes: bytes, source: str,
+                               source_event_id: str, camera_id: str,
+                               ingest_key: str, payload_hash: str) -> dict:
+        if ingest_key:
+            existing = self.run_store.get_by_ingest_key(ingest_key, payload_hash)
+            if existing:
+                return self._reused_ingress_response(existing)
+
         body["source"] = source
         event = self.perception.process(body, image_bytes, verbose=source != "local_yolo")
         event.event_id = self._new_event_id()
         event.run_id = "RUN_" + uuid.uuid4().hex
         event.trace_id = "TRACE_" + uuid.uuid4().hex
+        event.source_event_id = source_event_id
+        event.ingest_key = ingest_key
+        event.ingest_payload_hash = payload_hash
+        event.camera_id = camera_id
         event.lifecycle_status = "analyzing"
 
-        incidents = event.events
+        detected_incidents = list(event.events)
+        incidents = detected_incidents
         if source == "local_yolo":
             incidents = self._event_gate.filter(incidents)
+        after_temporal_gate = len(incidents)
         if not source.startswith("demo:"):
-            incidents = [item for item in incidents if self._should_report(item)]
+            incidents = [item for item in incidents if self._should_report(item, camera_id)]
         if not incidents:
-            return {"status": "filtered", "source": source, "events": 0}
+            if not ingest_key:
+                return {
+                    "status": "filtered", "source": source, "events": 0,
+                    "source_event_id": source_event_id, "reused": False,
+                }
+            if not detected_incidents:
+                filter_reason = "no_policy_incident"
+            elif source == "local_yolo" and not after_temporal_gate:
+                filter_reason = "temporal_gate"
+            else:
+                filter_reason = "cooldown"
+            event.events = []
+            event.lifecycle_status = "filtered"
+            event.timeline = [timeline(
+                "filtered", "入口过滤",
+                f"事件未进入 Agent 管线: {filter_reason}",
+            )]
+            stored_run, created = self.run_store.create_or_get(
+                event, source, initial_status="filtered", initial_stage="ingress",
+                transition_detail=filter_reason,
+            )
+            if not created:
+                return self._reused_ingress_response(stored_run)
+            return {
+                "status": "filtered", "source": source, "events": 0,
+                "event_id": event.event_id, "run_id": event.run_id,
+                "trace_id": event.trace_id, "run_status": "filtered",
+                "source_event_id": source_event_id, "camera_id": camera_id,
+                "reused": False,
+            }
 
         event.events = incidents
         is_demo = source.startswith("demo:")
@@ -158,11 +231,16 @@ class AgentRuntime:
             timeline("detected", detected_label, detected_detail),
             timeline("analyzing", "Agent分析", "安全Agent正在进行视觉语义分析"),
         ]
+        stored_run, created = self.run_store.create_or_get(event, source)
+        if not created:
+            return self._reused_ingress_response(stored_run)
+
+        # Evidence and other observable side effects happen only after this request
+        # wins the atomic ingest-key insert.
         self._attach_evidence(event, prefix="demo" if is_demo else "alarm")
         self._log_incident(event, source)
-        self.run_store.create(event, source)
+        self.run_store.save_snapshot(event)
 
-        threading.Thread(target=self._run_agent_pipeline, args=(event,), daemon=True).start()
         early_message = {
             "type": "alarm",
             "event_id": event.event_id,
@@ -170,16 +248,58 @@ class AgentRuntime:
             "trace_id": event.trace_id,
             "timestamp": event.timestamp,
             "source": source,
-            "camera_id": body.get("cameraId", self.settings.camera_id),
+            "camera_id": camera_id,
+            "source_event_id": source_event_id,
+            "reused": False,
             "lifecycle_status": event.lifecycle_status,
             "timeline": event.timeline,
             "image_url": event.image_url,
             "events": [event_payload(item) for item in incidents],
         }
         self._remember_and_broadcast(early_message)
+        threading.Thread(target=self._run_agent_pipeline, args=(event,), daemon=True).start()
         return {
             "status": "ok", "source": source, "event_id": event.event_id,
             "run_id": event.run_id, "trace_id": event.trace_id, "events": len(incidents),
+            "source_event_id": source_event_id, "camera_id": camera_id, "reused": False,
+        }
+
+    @staticmethod
+    def _ingress_identity(source: str, camera_id: str, source_event_id: str,
+                          body: dict, image_bytes: bytes) -> tuple[str, str]:
+        if not source_event_id:
+            return "", ""
+        identity = f"ingress-v1\n{source.strip()}\n{camera_id.strip()}\n{source_event_id}"
+        ingest_key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        semantic_body = {
+            key: value for key, value in body.items()
+            if key not in {
+                "source", "source_event_id", "sourceEventId", "camera_id", "cameraId",
+            }
+        }
+        canonical = json.dumps(
+            semantic_body, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), default=str,
+        ).encode("utf-8")
+        image_hash = hashlib.sha256(image_bytes or b"").digest()
+        payload_hash = hashlib.sha256(canonical + b"\x00" + image_hash).hexdigest()
+        return ingest_key, payload_hash
+
+    @staticmethod
+    def _reused_ingress_response(run: dict) -> dict:
+        snapshot = run.get("event") or {}
+        run_status = str(run.get("status") or "")
+        return {
+            "status": "filtered" if run_status == "filtered" else "ok",
+            "source": run.get("source") or snapshot.get("raw_json", {}).get("source", "external"),
+            "event_id": run.get("event_id") or snapshot.get("event_id", ""),
+            "run_id": run.get("run_id") or snapshot.get("run_id", ""),
+            "trace_id": run.get("trace_id") or snapshot.get("trace_id", ""),
+            "events": len(snapshot.get("events") or []),
+            "source_event_id": run.get("source_event_id") or snapshot.get("source_event_id", ""),
+            "camera_id": run.get("camera_id") or snapshot.get("camera_id", ""),
+            "run_status": run_status,
+            "reused": True,
         }
 
     def trigger_demo(self, scenario: str) -> dict:
@@ -615,10 +735,10 @@ class AgentRuntime:
         event.image_url = f"{self._public_base()}/alarms/{path.name}"
         print(f"  截图: {path}")
 
-    def _should_report(self, event: dict) -> bool:
+    def _should_report(self, event: dict, camera_id: str = "") -> bool:
         rect = event["bbox"]
         zone = f"{int(rect['x'] / 100)}-{int(rect['y'] / 100)}"
-        key = event["type"], zone
+        key = camera_id, event["type"], zone
         now = time.monotonic()
         with self._report_lock:
             cooldown = self.COOLDOWNS.get(event["type"], 5)
