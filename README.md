@@ -1,6 +1,6 @@
 # 可信多模态工业安全 Agent Runtime 与数字孪生系统
 
-[![agent-quality-gates](https://github.com/33good/yolo26_agent-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/33good/yolo26_agent-/actions/workflows/ci.yml)
+[![agent-quality-gates](https://github.com/33good/industrial-safety-agent-runtime/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/33good/industrial-safety-agent-runtime/actions/workflows/ci.yml)
 
 > Event-driven multimodal safety Agent Runtime with bounded reasoning, deterministic guardrails and recoverable execution.
 
