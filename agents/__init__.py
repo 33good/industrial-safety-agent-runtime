@@ -21,6 +21,9 @@ class AlarmEvent:
     ingest_key: str = ""
     ingest_payload_hash: str = ""
     camera_id: str = ""
+    evidence_id: str = ""
+    owner_id: str = ""
+    execution_attempt: int = 0
     raw_json: dict = field(default_factory=dict)
     image_bytes: bytes = b""
     image_url: str = ""
@@ -32,12 +35,20 @@ class AlarmEvent:
     llm_json_valid: bool = False
     llm_model: str = ""
     prompt_version: str = ""
+    context_manifest: dict = field(default_factory=dict)
+    evidence_replan: dict = field(default_factory=dict)
+    failure_attributions: list = field(default_factory=list)
+    repair_trace: dict = field(default_factory=dict)
     sop_retrieval: dict = field(default_factory=dict)
     rag_status: str = "not_run"
     dispatch_decision: dict = field(default_factory=dict)
     dispatch_actions: list = field(default_factory=list)
     approval_id: str = ""
     approval_status: str = "auto"
+    execution_id: str = ""
+    execution_status: str = ""
+    execution_result: str = ""
+    execution_actions: list = field(default_factory=list)
     lifecycle_status: str = "detected"
     timeline: list = field(default_factory=list)
 

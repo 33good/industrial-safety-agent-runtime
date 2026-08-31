@@ -1,0 +1,2001 @@
+{
+  "benchmark": "multimodal_agent",
+  "status": "completed",
+  "generated_at": "2026-08-01T06:11:47.896920+00:00",
+  "suite": "four_mode_ablation",
+  "model": "qwen2.5vl:7b",
+  "prompt_version": "safety-v2.3-conflict-aware",
+  "catalog_version": "2026.08-demo.1",
+  "warmup_latency_ms": 1806.8,
+  "input_mode": "generated replay images and/or structured detections",
+  "dataset": {
+    "cases": 40,
+    "category_counts": {
+      "cross_modal_conflict": 8,
+      "degraded_evidence": 8,
+      "guardrail_adversarial": 8,
+      "normal": 8,
+      "sop_difficult": 8
+    },
+    "input_mode_counts": {
+      "conflict": 8,
+      "image_json": 21,
+      "image_only": 2,
+      "json_only": 9
+    },
+    "ablation_seed_cases": 4,
+    "selected_cases": 16,
+    "repeats": 3
+  },
+  "variants": [
+    {
+      "variant": "grounded_sop_rag",
+      "metrics": {
+        "cases": 16,
+        "repeats": 3,
+        "executions": 48,
+        "passed": 27,
+        "structured_output_valid_pct": 100.0,
+        "risk_level_accuracy_pct": 54.17,
+        "final_risk_level_accuracy_pct": 60.42,
+        "candidate_non_downgrade_pct": 58.33,
+        "final_non_downgrade_pct": 64.58,
+        "model_candidate_action_compliance_pct": 100.0,
+        "guardrail_final_plan_valid_pct": 100.0,
+        "guardrail_correction_pct": 100.0,
+        "decision_trace_complete_pct": 100.0,
+        "three_run_consistency_pct": 81.25,
+        "grounded_citation_coverage_pct": 94.44,
+        "citation_precision_pct": 100.0,
+        "citation_guardrail_rejections": 0,
+        "no_evidence_refusal_accuracy_pct": 100.0,
+        "latency_mean_ms": 1563.2,
+        "latency_p50_ms": 1553.0,
+        "latency_p95_ms": 1871.9
+      },
+      "by_category": {
+        "normal": {
+          "executions": 48,
+          "pass_rate_pct": 56.25,
+          "risk_accuracy_pct": 54.17,
+          "final_risk_accuracy_pct": 60.42,
+          "final_non_downgrade_pct": 64.58,
+          "guardrail_plan_valid_pct": 100.0
+        }
+      },
+      "by_input_mode": {
+        "conflict": {
+          "executions": 12,
+          "pass_rate_pct": 16.67,
+          "risk_accuracy_pct": 8.33,
+          "final_risk_accuracy_pct": 33.33,
+          "final_non_downgrade_pct": 33.33,
+          "guardrail_plan_valid_pct": 100.0
+        },
+        "image_json": {
+          "executions": 12,
+          "pass_rate_pct": 100.0,
+          "risk_accuracy_pct": 100.0,
+          "final_risk_accuracy_pct": 100.0,
+          "final_non_downgrade_pct": 100.0,
+          "guardrail_plan_valid_pct": 100.0
+        },
+        "image_only": {
+          "executions": 12,
+          "pass_rate_pct": 8.33,
+          "risk_accuracy_pct": 8.33,
+          "final_risk_accuracy_pct": 8.33,
+          "final_non_downgrade_pct": 25.0,
+          "guardrail_plan_valid_pct": 100.0
+        },
+        "json_only": {
+          "executions": 12,
+          "pass_rate_pct": 100.0,
+          "risk_accuracy_pct": 100.0,
+          "final_risk_accuracy_pct": 100.0,
+          "final_non_downgrade_pct": 100.0,
+          "guardrail_plan_valid_pct": 100.0
+        }
+      },
+      "results": [
+        {
+          "evaluation_id": "normal_helmet__conflict",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 1,
+          "passed": false,
+          "expected_level": "B",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1634.3,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__conflict",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 2,
+          "passed": false,
+          "expected_level": "B",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1556.6,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__conflict",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "B",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1459.6,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__image_json",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "B",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1624.2,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "actual_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__image_json",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "B",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1387.7,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "actual_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__image_json",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "B",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1606.0,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "actual_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__image_only",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 1,
+          "passed": false,
+          "expected_level": "B",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1470.2,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__image_only",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 2,
+          "passed": false,
+          "expected_level": "B",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1111.6,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未提供可验证的SOP引用",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__image_only",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "B",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1403.5,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__json_only",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "B",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1307.4,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "actual_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__json_only",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "B",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1491.6,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "actual_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_helmet__json_only",
+          "case_id": "normal_helmet",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "B",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1253.9,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "actual_citations": [
+            "PPE-001#4.2-helmet@1.2"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__conflict",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "A",
+          "risk_match": false,
+          "final_risk_match": true,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1389.0,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__conflict",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 2,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "A",
+          "risk_match": false,
+          "final_risk_match": true,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1544.0,
+          "rag_status": "citation_missing",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未提供可验证的SOP引用",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__conflict",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "A",
+          "risk_match": false,
+          "final_risk_match": true,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1311.6,
+          "rag_status": "citation_missing",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未提供可验证的SOP引用",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__image_json",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "C",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1653.5,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__image_json",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "C",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1591.3,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__image_json",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "C",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1585.4,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__image_only",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 1,
+          "passed": false,
+          "expected_level": "C",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1527.4,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__image_only",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "C",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1661.8,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__image_only",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "C",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1514.4,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__json_only",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "C",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1740.2,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__json_only",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "C",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1703.5,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_vehicle__json_only",
+          "case_id": "normal_vehicle",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "C",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1347.8,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__conflict",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 1,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1382.1,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__conflict",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 2,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1357.5,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__conflict",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1340.9,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__image_json",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1426.7,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__image_json",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1538.4,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__image_json",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1722.7,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__image_only",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 1,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1311.0,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__image_only",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 2,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1312.0,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__image_only",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "C",
+          "final_level": "C",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1324.2,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未检索到达到阈值的适用规程，不提供SOP依据",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__json_only",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1553.0,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__json_only",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1513.0,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_fire__json_only",
+          "case_id": "normal_fire",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1433.8,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "actual_citations": [
+            "FIRE-003#6.1-initial-response@1.1"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__conflict",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1871.9,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__conflict",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 2,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1654.3,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__conflict",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "conflict",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1639.0,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__image_json",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1750.5,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__image_json",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1734.1,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__image_json",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "image_json",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1740.9,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__image_only",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 1,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1737.7,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未提供可验证的SOP引用",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__image_only",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 2,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1618.6,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未提供可验证的SOP引用",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__image_only",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "image_only",
+          "repetition": 3,
+          "passed": false,
+          "expected_level": "A",
+          "actual_level": "B",
+          "final_level": "B",
+          "risk_match": false,
+          "final_risk_match": false,
+          "candidate_non_downgrade": false,
+          "final_non_downgrade": false,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1611.1,
+          "rag_status": "no_evidence",
+          "expected_citations": [],
+          "actual_citations": [],
+          "rejected_citations": [],
+          "sop_refusal_reason": "未提供可验证的SOP引用",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send",
+            "reporter.log"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__json_only",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 1,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 1813.8,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__json_only",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 2,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 2426.6,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        },
+        {
+          "evaluation_id": "normal_person_vehicle__json_only",
+          "case_id": "normal_person_vehicle",
+          "category": "normal",
+          "input_mode": "json_only",
+          "repetition": 3,
+          "passed": true,
+          "expected_level": "A",
+          "actual_level": "A",
+          "final_level": "A",
+          "risk_match": true,
+          "final_risk_match": true,
+          "candidate_non_downgrade": true,
+          "final_non_downgrade": true,
+          "candidate_compliant": true,
+          "guardrail_valid": true,
+          "trace_complete": true,
+          "llm_json_valid": true,
+          "llm_status": "success",
+          "latency_ms": 2344.6,
+          "rag_status": "grounded",
+          "expected_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "actual_citations": [
+            "TRAFFIC-002#5.1-separation@2.0"
+          ],
+          "rejected_citations": [],
+          "sop_refusal_reason": "",
+          "rejected_candidate_actions": [],
+          "policy_rejected_actions": [],
+          "candidate_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent"
+          ],
+          "final_plan": [
+            "human_loop.check",
+            "database.store",
+            "notifier.send_urgent",
+            "reporter.generate"
+          ]
+        }
+      ]
+    }
+  ],
+  "scope": "Measures model structure, risk decisions, guarded plans, grounded citations, refusal, repeat consistency and decision-stage trace completeness. Generated replay images do not measure real-world detector accuracy; full execution Trace is covered separately."
+}

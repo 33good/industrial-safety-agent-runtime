@@ -28,6 +28,7 @@ class DispatchAgent(BaseAgent):
     }
 
     LEVEL_WEIGHT = {"C": 1, "B": 2, "A": 3}
+    GROUNDING_POLICY_VERSION = "final-sop-grounding-v1"
 
     def __init__(self, tool_executor=None):
         super().__init__("调度Agent")
@@ -53,7 +54,13 @@ class DispatchAgent(BaseAgent):
         # 取检测/记忆后的最高等级，再结合 LLM 结构化建议做安全裁决。
         rule_level = self._highest_event_level(event)
         decision = self._make_decision(event, rule_level)
+        decision["evidence_policy"] = dict(
+            (getattr(event, "llm_recommendation", {}) or {}).get(
+                "evidence_assessment"
+            ) or {}
+        )
         top_level = decision["final_level"]
+        decision["grounding"] = self._finalize_grounding(event)
         event.dispatch_decision = decision
 
         rules, plan_validation = self._validate_tool_plan(top_level, event)
@@ -68,6 +75,78 @@ class DispatchAgent(BaseAgent):
             f"强制补齐{len(plan_validation['forced'])}项 / 拒绝{len(plan_validation['rejected'])}项"
         )
         return sorted(rules, key=lambda rule: rule["priority"])
+
+    def _finalize_grounding(self, event: AlarmEvent) -> dict:
+        """Bind final SOP evidence to trusted structured events, not model preference.
+
+        Retrieval candidates must have entered this turn's governed context and
+        declare an exact event-type match. The model-selected citations remain in
+        ``llm_recommendation`` for audit, but cannot add or remove final evidence.
+        """
+        retrieval = getattr(event, "sop_retrieval", {}) or {}
+        selected_ids = set(
+            (getattr(event, "context_manifest", {}) or {}).get(
+                "selected_citation_ids"
+            ) or []
+        )
+        event_types = {
+            str(item.get("type") or "").strip()
+            for item in (getattr(event, "events", []) or [])
+            if isinstance(item, dict) and str(item.get("type") or "").strip()
+        }
+        grounded = []
+        for citation in retrieval.get("citations") or []:
+            if not isinstance(citation, dict):
+                continue
+            citation_id = str(citation.get("citation_id") or "").strip()
+            matched_event_types = sorted(
+                event_types.intersection(
+                    str(value).strip()
+                    for value in citation.get("matched_event_types") or []
+                    if str(value).strip()
+                )
+            )
+            if not citation_id or citation_id not in selected_ids or not matched_event_types:
+                continue
+            grounded.append({
+                "citation_id": citation_id,
+                "document_id": str(citation.get("document_id") or ""),
+                "title": str(citation.get("title") or ""),
+                "section": str(citation.get("section") or ""),
+                "version": str(citation.get("version") or ""),
+                "source": str(citation.get("source") or ""),
+                "excerpt": str(citation.get("excerpt") or "")[:280],
+                "binding": "structured_event_exact",
+                "matched_event_types": matched_event_types,
+            })
+
+        retrieval_status = str(retrieval.get("status") or "not_run")
+        if grounded:
+            status = "grounded"
+            refusal_reason = ""
+        elif retrieval_status == "retrieved":
+            status = "retrieved_unbound"
+            refusal_reason = "retrieved SOP was not exactly bound to a structured event"
+        else:
+            status = retrieval_status
+            refusal_reason = str(retrieval.get("refusal_reason") or "")[:220]
+        return {
+            "policy_version": self.GROUNDING_POLICY_VERSION,
+            "status": status,
+            "catalog_version": str(retrieval.get("catalog_version") or ""),
+            "citations": grounded,
+            "citation_ids": [item["citation_id"] for item in grounded],
+            "refusal_reason": refusal_reason,
+            "model_candidate_citation_ids": [
+                str(item.get("citation_id") or "")
+                for item in (
+                    (getattr(event, "llm_recommendation", {}) or {}).get(
+                        "sop_citations"
+                    ) or []
+                )
+                if isinstance(item, dict) and item.get("citation_id")
+            ],
+        }
 
     def execute_plan(self, event: AlarmEvent, rules: list[dict]) -> list:
         """Execute a previously validated plan through the configured tool boundary."""
@@ -140,6 +219,7 @@ class DispatchAgent(BaseAgent):
         ]
         return baseline, {
             "level": level,
+            "candidate_plan": candidate_names,
             "candidate_count": len(candidate_names),
             "accepted": accepted,
             "forced": forced,

@@ -1092,9 +1092,10 @@ const chainEls={
   }
 };
 let ws,total=0,crit=0,first=true,lastImageUrl='',trendChart,isFocusing=false;
+const RUNTIME_CONFIG=window.__RUNTIME_CONFIG__||{};
 const API_HOST=window.location.hostname==='localhost'?'127.0.0.1':(window.location.hostname||'127.0.0.1');
-const WS_URL=`ws://${API_HOST}:5001`;
-const API_URL=`http://${API_HOST}:5000`;
+const WS_URL=RUNTIME_CONFIG.wsUrl||`ws://${API_HOST}:5001`;
+const API_URL=String(RUNTIME_CONFIG.apiBase||`http://${API_HOST}:5000`).replace(/\/$/,'');
 const CAMERA_STREAM_URL=`${API_URL}/camera/stream`;
 const processedEventIds=new Set();
 const shownApprovalIds=new Set();
@@ -1521,42 +1522,6 @@ function setView(next){
     .start();
 }
 document.querySelectorAll('#view-controls button').forEach(btn=>btn.addEventListener('click',()=>setView(btn.dataset.view)));
-
-async function triggerDemoScenario(scenario,btn){
-  const statusEl=document.getElementById('demo-status');
-  const buttons=[...document.querySelectorAll('.demo-btn')];
-  buttons.forEach(item=>item.disabled=true);
-  if(statusEl)statusEl.textContent=`正在注入 ${scenario}...`;
-  try{
-    const resp=await fetch(`${API_URL}/demo/trigger`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({scenario})
-    });
-    const data=await resp.json().catch(()=>({status:'error',message:`HTTP ${resp.status}`}));
-    if(!resp.ok||data.status!=='ok')throw new Error(data.message||`HTTP ${resp.status}`);
-    if(statusEl)statusEl.textContent=`已注入 ${data.event_id||scenario}`;
-    setFlowState('cam');
-    await renderLatestDemoEvent(data.event_id);
-    refreshHealth();
-  }catch(e){
-    if(statusEl)statusEl.textContent=`演示触发失败：${e.message}`;
-  }finally{
-    setTimeout(()=>buttons.forEach(item=>item.disabled=false),900);
-  }
-}
-document.querySelectorAll('.demo-btn').forEach(btn=>btn.addEventListener('click',()=>triggerDemoScenario(btn.dataset.demo,btn)));
-
-async function renderLatestDemoEvent(eventId){
-  try{
-    const resp=await fetch(`${API_URL}/latest_event`,{cache:'no-store'});
-    if(!resp.ok)return;
-    const event=await resp.json();
-    if(!event?.events?.length)return;
-    if(eventId&&event.event_id&&event.event_id!==eventId)return;
-    handleMessage({...event,_demoDirect:true});
-  }catch(e){}
-}
 
 function _focusCameraOn(pos){
   if(isFocusing)return;

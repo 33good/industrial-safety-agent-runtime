@@ -49,7 +49,7 @@ class PerceptionAgent(BaseAgent):
         events = self._analyze_frame(obj_list, risk_box, focus_level)
 
         if verbose:
-            # External callbacks and demo replay keep detailed logs. Local video inference
+            # External callbacks and benchmark fixtures keep detailed logs. Local video inference
             # runs several times per second, so it logs only after an event is stabilized.
             for obj in obj_list:
                 tn = self.TYPE_NAMES.get(obj.get("targetType", -1), "?")
@@ -180,38 +180,58 @@ class PerceptionAgent(BaseAgent):
                                "confidence": confidence})
 
         # -- 复合风险：同一人的多种违规合并升级 --
-        self._compound_risk(events)
+        events.extend(self._compound_risk(events))
 
         return events
 
     def _compound_risk(self, events):
-        """同一人的多种违规 → 生成复合风险事件"""
+        """Return new compound events without mutating the source grouping."""
         by_tid = {}
         for e in events:
-            tid = e.get("targetId", -1)
+            tid = e.get("targetId")
+            if tid is None:
+                # Without a stable target identity, detections from different
+                # people must not be merged into one compound incident.
+                continue
             if tid not in by_tid:
                 by_tid[tid] = []
             by_tid[tid].append(e)
 
+        compound_events = []
         for tid, evs in by_tid.items():
             types = [e["type"] for e in evs]
             # 未戴安全帽 + 区域入侵A级 → 升级为复合高危
-            if "未戴安全帽" in types and any("区域入侵" in t for t in types):
-                high_risk_bbox = next((e["bbox"] for e in evs if e.get("level") == "A"), evs[0]["bbox"])
-                evs.append({
+            high_risk_zone = next((
+                e for e in evs
+                if "区域入侵" in str(e.get("type") or "")
+                and str(e.get("level") or "").upper() == "A"
+            ), None)
+            if (
+                "未戴安全帽" in types
+                and high_risk_zone is not None
+                and "复合风险-高危" not in types
+            ):
+                compound_events.append({
                     "type": "复合风险-高危", "level": "A",
                     "detail": "人员未佩戴安全帽且进入危险区域，复合风险升级为A级",
-                    "bbox": high_risk_bbox, "targetId": tid,
+                    "bbox": high_risk_zone["bbox"],
+                    "person_bbox": high_risk_zone.get("person_bbox") or evs[0].get("bbox", {}),
+                    "targetId": tid,
                     "confidence": min((e.get("confidence", 0) for e in evs), default=0),
                 })
             # 未戴安全帽 + 未穿背心 → 复合违规
-            if "未戴安全帽" in types and "未穿反光背心" in types:
-                evs.append({
+            if (
+                "未戴安全帽" in types
+                and "未穿反光背心" in types
+                and "复合违规-双重缺失" not in types
+            ):
+                compound_events.append({
                     "type": "复合违规-双重缺失", "level": "B",
                     "detail": "人员同时未佩戴安全帽和反光背心",
                     "bbox": evs[0]["bbox"], "targetId": tid,
                     "confidence": min((e.get("confidence", 0) for e in evs), default=0),
                 })
+        return compound_events
 
     @staticmethod
     def _overlap_area(a, b):

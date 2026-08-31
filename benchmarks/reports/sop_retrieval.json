@@ -1,6 +1,6 @@
 {
   "benchmark": "sop_retrieval",
-  "catalog_version": "2026.08-demo.1",
+  "catalog_version": "2026.08.1",
   "metrics": {
     "cases": 8,
     "passed": 8,

@@ -19,7 +19,17 @@ from agents.sop_retriever import SOPRetriever
 from backend import Application
 from benchmarks.run_agent_benchmark import DEFAULT_CASES, build_report, load_cases
 from benchmarks.run_runtime_faults import build_report as build_fault_report
+from benchmarks.run_trace_benchmark import build_report as build_trace_report
+from benchmarks.run_multimodal_benchmark import (
+    RUNTIME_CONTRACT_SCOPE,
+    VISION_EXPLORATORY_SCOPE,
+    classify_evaluation_scope,
+    load_cases as load_multimodal_cases,
+    select_cases as select_multimodal_cases,
+    validate_case_set as validate_multimodal_cases,
+)
 from benchmarks.run_sop_benchmark import build_report as build_sop_report
+from benchmarks.scenario_fixtures import scenario_alarm_body, scenario_image
 from services.agent_runtime import AgentRuntime, event_payload
 from services.analysis_limiter import AnalysisLimiter
 from services.evidence import annotate_image
@@ -46,6 +56,29 @@ class FakeResponse:
 
     def __exit__(self, *args):
         return False
+
+
+def _test_context_manifest():
+    return {
+        "schema_version": "agent-context-v1",
+        "builder_version": "context-builder-v1.0",
+        "status": "built",
+        "token_budget": 1200,
+        "estimated_tokens": 1,
+        "budget_utilization_pct": 0.08,
+        "budget_overflow_tokens": 0,
+        "truncated": False,
+        "critical_evidence_retained": True,
+        "input_item_count": 0,
+        "selected_item_count": 0,
+        "dropped_item_count": 0,
+        "selected_items": [],
+        "dropped_items": [],
+        "selected_citation_ids": [],
+        "context_sha256": "c" * 64,
+        "model_input_sha256": "m" * 64,
+        "source_versions": {},
+    }
 
 
 class StabilityTests(unittest.TestCase):
@@ -78,10 +111,21 @@ class StabilityTests(unittest.TestCase):
                 event.llm_json_valid = True
                 event.llm_recommendation = {"risk_level": "C", "confidence": 0.9}
                 event.llm_analysis = "benchmark"
+                event.llm_model = "mock"
+                event.prompt_version = "test-prompt-v1"
+                event.context_manifest = _test_context_manifest()
+                event.sop_retrieval = {
+                    "status": "no_evidence", "catalog_version": "test-catalog-v1",
+                    "citations": [], "refusal_reason": "test",
+                }
+                event.rag_status = "refused_no_evidence"
                 return "benchmark"
 
             runtime.safety.analyze = analyze
-            result = runtime.trigger_demo("c_vehicle")
+            body = scenario_alarm_body("c_vehicle")
+            result = runtime.ingest_detection(
+                body, scenario_image(body, "c_vehicle"), source="benchmark"
+            )
             deadline = time.time() + 3
             row = runtime.run_store.get(result["run_id"])
             while row["status"] not in {"succeeded", "manual_takeover"} and time.time() < deadline:
@@ -93,7 +137,21 @@ class StabilityTests(unittest.TestCase):
                 [item["to_status"] for item in runtime.run_store.transitions(result["run_id"])],
                 ["analyzing", "decided", "executing", "succeeded"],
             )
+            message_deadline = time.time() + 1
+            while (
+                not any(message.get("type") == "alarm_with_llm" for message in broadcaster.messages)
+                and time.time() < message_deadline
+            ):
+                time.sleep(0.01)
             self.assertTrue(any(message.get("type") == "alarm_with_llm" for message in broadcaster.messages))
+            trace = runtime.get_trace(result["run_id"])
+            self.assertTrue(trace["validation"]["valid"], trace["validation"]["errors"])
+            self.assertEqual(trace["outcome"]["final_status"], "succeeded")
+            self.assertEqual(trace["timing"]["schema_version"], "agent-run-timing-v1")
+            metrics = runtime.runtime_metrics()
+            self.assertEqual(metrics["schema_version"], "agent-runtime-metrics-v1")
+            self.assertEqual(metrics["runs"]["status_counts"].get("succeeded"), 1)
+            self.assertEqual(metrics["latency_ms"]["end_to_end"]["count"], 1)
 
     def test_a_level_approval_and_actuation_are_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -125,10 +183,21 @@ class StabilityTests(unittest.TestCase):
                     "risk_level": "A", "confidence": 0.95, "need_human_confirm": True,
                 }
                 event.llm_analysis = "benchmark"
+                event.llm_model = "mock"
+                event.prompt_version = "test-prompt-v1"
+                event.context_manifest = _test_context_manifest()
+                event.sop_retrieval = {
+                    "status": "no_evidence", "catalog_version": "test-catalog-v1",
+                    "citations": [], "refusal_reason": "test",
+                }
+                event.rag_status = "refused_no_evidence"
                 return "benchmark"
 
             runtime.safety.analyze = analyze
-            result = runtime.trigger_demo("a_person_vehicle")
+            body = scenario_alarm_body("a_person_vehicle")
+            result = runtime.ingest_detection(
+                body, scenario_image(body, "a_person_vehicle"), source="benchmark"
+            )
             deadline = time.time() + 3
             row = runtime.run_store.get(result["run_id"])
             while row["status"] not in {"waiting_approval", "manual_takeover"} and time.time() < deadline:
@@ -149,6 +218,10 @@ class StabilityTests(unittest.TestCase):
             self.assertEqual(first["execution_id"], second["execution_id"])
             self.assertEqual(runtime.run_store.get(result["run_id"])["status"], "succeeded")
             self.assertEqual(len(list((root / "executions").glob("EXEC_*.json"))), 1)
+            trace = runtime.get_trace(result["run_id"])
+            self.assertTrue(trace["validation"]["valid"], trace["validation"]["errors"])
+            self.assertEqual(trace["approval"]["status"], "approved")
+            self.assertEqual(trace["actuation"]["execution_id"], first["execution_id"])
 
     def test_run_store_persists_snapshot_and_transition_history(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -382,6 +455,39 @@ class StabilityTests(unittest.TestCase):
         report = build_fault_report()
         self.assertEqual(report["summary"]["failed"], 0)
 
+    def test_trace_integrity_benchmark_has_no_failed_cases(self):
+        report = build_trace_report()
+        self.assertEqual(report["summary"]["failed"], 0)
+
+    def test_multimodal_hard_suite_has_balanced_categories_and_ablation_modes(self):
+        cases = load_multimodal_cases()
+        summary = validate_multimodal_cases(cases)
+        self.assertEqual(summary["cases"], 40)
+        self.assertTrue(all(count == 8 for count in summary["category_counts"].values()))
+        ablation = select_multimodal_cases(cases, ablation=True)
+        self.assertEqual(len(ablation), 16)
+        self.assertEqual(
+            {mode: sum(item["input_mode"] == mode for item in ablation) for mode in (
+                "image_only", "json_only", "image_json", "conflict",
+            )},
+            {"image_only": 4, "json_only": 4, "image_json": 4, "conflict": 4},
+        )
+
+    def test_multimodal_suite_separates_runtime_contract_from_generated_vision(self):
+        cases = select_multimodal_cases(load_multimodal_cases())
+        scope_counts = {
+            scope: sum(classify_evaluation_scope(case) == scope for case in cases)
+            for scope in (RUNTIME_CONTRACT_SCOPE, VISION_EXPLORATORY_SCOPE)
+        }
+        self.assertEqual(
+            scope_counts,
+            {RUNTIME_CONTRACT_SCOPE: 34, VISION_EXPLORATORY_SCOPE: 6},
+        )
+        self.assertTrue(all(
+            classify_evaluation_scope(case) == VISION_EXPLORATORY_SCOPE
+            for case in cases if case["input_mode"] == "image_only"
+        ))
+
     def test_startup_runs_local_preflight_before_server(self):
         script = Path("start.bat").read_text(encoding="utf-8")
         preflight_at = script.index("preflight.py --startup")
@@ -432,7 +538,7 @@ class StabilityTests(unittest.TestCase):
         self.assertFalse(worker.status()["active"])
         self.assertEqual(worker.status()["status"], "ready")
 
-    def test_yolo26_demo_labels_map_to_existing_perception_protocol(self):
+    def test_yolo26_labels_map_to_existing_perception_protocol(self):
         self.assertEqual(DEFAULT_CLASS_MAP["person"], 0)
         self.assertEqual(DEFAULT_CLASS_MAP["helmet"], 1)
         self.assertEqual(DEFAULT_CLASS_MAP["vest"], 2)
@@ -461,7 +567,10 @@ class StabilityTests(unittest.TestCase):
             },
         }
         event = PerceptionAgent().process({"objInfo": [person]}, verbose=False)
-        self.assertEqual({item["type"] for item in event.events}, {"未戴安全帽", "未穿反光背心"})
+        self.assertEqual(
+            {item["type"] for item in event.events},
+            {"未戴安全帽", "未穿反光背心", "复合违规-双重缺失"},
+        )
         self.assertTrue(all(item["level"] == "B" for item in event.events))
 
     def test_frontend_exposes_controlled_live_detection_overlay(self):
@@ -520,11 +629,16 @@ class StabilityTests(unittest.TestCase):
     def test_repository_quality_gate_is_reproducibly_wired(self):
         workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         env_example = Path(".env.example").read_text(encoding="utf-8")
+        quality_gate = Path("verify.py").read_text(encoding="utf-8")
         self.assertIn("python -B verify.py", workflow)
         self.assertIn("requirements-ci.txt", workflow)
+        self.assertIn("benchmarks.run_context_benchmark", quality_gate)
+        self.assertIn("benchmarks.run_repair_benchmark", quality_gate)
+        self.assertIn("benchmarks.run_trace_benchmark", quality_gate)
         self.assertTrue(Path("requirements.txt").is_file())
         self.assertTrue(Path("requirements-ci.txt").is_file())
         self.assertIn("VISION_ENABLED=0", env_example)
+        self.assertIn("CONTEXT_TOKEN_BUDGET=1200", env_example)
         self.assertNotIn(r"D:\study", env_example)
 
     def test_ollama_vision_payload_uses_plural_images_only(self):
@@ -547,6 +661,32 @@ class StabilityTests(unittest.TestCase):
         self.assertNotIn("image", message)
         self.assertEqual(captured["payload"]["format"], "json")
         self.assertEqual(captured["payload"]["options"]["temperature"], 0)
+        self.assertEqual(
+            captured["payload"]["options"]["num_predict"],
+            SafetyAgent.MAX_OUTPUT_TOKENS,
+        )
+        self.assertTrue(event.context_manifest["image"]["present"])
+        self.assertEqual(event.context_manifest["image"]["input_bytes"], len(b"jpeg"))
+        self.assertEqual(len(event.context_manifest["image"]["input_sha256"]), 64)
+        self.assertEqual(len(event.context_manifest["model_input_sha256"]), 64)
+
+    def test_ollama_repair_payload_has_a_smaller_generation_budget(self):
+        captured = {}
+
+        def fake_open(request, timeout=0):
+            captured["payload"] = json.loads(request.data.decode("utf-8"))
+            return FakeResponse(b'{"message":{"content":"{}"}}')
+
+        with patch("urllib.request.urlopen", fake_open):
+            SafetyAgent()._call_repair("repair")
+        self.assertEqual(
+            captured["payload"]["options"]["num_predict"],
+            SafetyAgent.MAX_REPAIR_OUTPUT_TOKENS,
+        )
+        self.assertLess(
+            SafetyAgent.MAX_REPAIR_OUTPUT_TOKENS,
+            SafetyAgent.MAX_OUTPUT_TOKENS,
+        )
 
     def test_sop_retrieval_is_traceable_and_refuses_unknown_event(self):
         retriever = SOPRetriever(Path("knowledge/sop/safety_procedures.json"))
@@ -576,6 +716,49 @@ class StabilityTests(unittest.TestCase):
         self.assertEqual(recommendation["rejected_sop_citations"], ["FAKE-999#1@9"])
         self.assertTrue(recommendation["sop_answerable"])
 
+    def test_dispatch_final_grounding_is_exact_and_model_independent(self):
+        citation = {
+            "citation_id": "PPE-001#4.2-helmet@1.2",
+            "document_id": "PPE-001",
+            "title": "helmet policy",
+            "section": "4.2-helmet",
+            "version": "1.2",
+            "source": "test-catalog",
+            "excerpt": "helmet required",
+            "matched_event_types": ["helmet_missing"],
+        }
+        event = AlarmEvent(
+            timestamp="test",
+            events=[{"type": "helmet_missing", "level": "B", "detail": "detected"}],
+            llm_recommendation={
+                "risk_level": "B",
+                "sop_citations": [],
+                "recommended_actions": [],
+            },
+            sop_retrieval={
+                "status": "retrieved",
+                "catalog_version": "test-v1",
+                "citations": [citation],
+            },
+            context_manifest={
+                "selected_citation_ids": [citation["citation_id"]],
+            },
+        )
+        DispatchAgent().plan(event)
+        grounding = event.dispatch_decision["grounding"]
+        self.assertEqual(grounding["status"], "grounded")
+        self.assertEqual(grounding["citation_ids"], [citation["citation_id"]])
+        self.assertEqual(
+            grounding["citations"][0]["binding"], "structured_event_exact"
+        )
+        self.assertEqual(grounding["model_candidate_citation_ids"], [])
+
+        event.events = [{"type": "different_event", "level": "B", "detail": "test"}]
+        DispatchAgent().plan(event)
+        grounding = event.dispatch_decision["grounding"]
+        self.assertEqual(grounding["status"], "retrieved_unbound")
+        self.assertEqual(grounding["citations"], [])
+
     def test_safety_agent_records_grounded_sop_provenance(self):
         retriever = SOPRetriever(Path("knowledge/sop/safety_procedures.json"))
         agent = SafetyAgent(mode="ollama", model="benchmark-model", sop_retriever=retriever)
@@ -595,7 +778,7 @@ class StabilityTests(unittest.TestCase):
 
         self.assertEqual(event.rag_status, "grounded")
         self.assertEqual(event.prompt_version, SafetyAgent.PROMPT_VERSION)
-        self.assertEqual(event.sop_retrieval["catalog_version"], "2026.08-demo.1")
+        self.assertEqual(event.sop_retrieval["catalog_version"], "2026.08.1")
         self.assertEqual(
             event.llm_recommendation["sop_citations"][0]["citation_id"],
             "FIRE-003#6.1-initial-response@1.1",

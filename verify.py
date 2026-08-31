@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import unittest
 
 
 ROOT = Path(__file__).resolve().parent
@@ -54,6 +55,10 @@ def main() -> int:
     steps = [
         ("agent_policy", ["-m", "benchmarks.run_agent_benchmark"]),
         ("runtime_faults", ["-m", "benchmarks.run_runtime_faults"]),
+        ("context_engineering", ["-m", "benchmarks.run_context_benchmark"]),
+        ("bounded_repair", ["-m", "benchmarks.run_repair_benchmark"]),
+        ("runtime_observability", ["-m", "benchmarks.run_runtime_metrics"]),
+        ("trace_integrity", ["-m", "benchmarks.run_trace_benchmark"]),
         ("sop_retrieval", ["-m", "benchmarks.run_sop_benchmark"]),
         ("unit_and_integration", ["-m", "unittest", "discover", "-s", "tests", "-v"]),
     ]
@@ -70,11 +75,15 @@ def main() -> int:
         if not result["passed"]:
             break
 
+    unit_and_integration_test_count = unittest.defaultTestLoader.discover(
+        str(ROOT / "tests")
+    ).countTestCases()
     summary = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "python": sys.version,
         "platform": sys.platform,
         "live_model_included": args.live,
+        "unit_and_integration_test_count": unit_and_integration_test_count,
         "passed": len(results) == len(steps) and all(item["passed"] for item in results),
         "steps": results,
     }

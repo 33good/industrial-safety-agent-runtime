@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -32,6 +33,14 @@ class IngestConflictError(RuntimeError):
         self.ingest_key = ingest_key
 
 
+class StaleRunOwnerError(RuntimeError):
+    """A worker attempted to mutate a Run after losing its fencing token."""
+
+    def __init__(self, run_id: str):
+        super().__init__(f"stale_or_missing_run_lease:{run_id}")
+        self.run_id = run_id
+
+
 def event_snapshot(event: AlarmEvent) -> dict:
     """Serialize the restart-safe part of an event; image bytes stay in evidence storage."""
     return {
@@ -44,6 +53,9 @@ def event_snapshot(event: AlarmEvent) -> dict:
         "ingest_key": event.ingest_key,
         "ingest_payload_hash": event.ingest_payload_hash,
         "camera_id": event.camera_id,
+        "evidence_id": event.evidence_id,
+        "owner_id": event.owner_id,
+        "execution_attempt": event.execution_attempt,
         "raw_json": event.raw_json,
         "image_url": event.image_url,
         "llm_analysis": event.llm_analysis,
@@ -54,12 +66,20 @@ def event_snapshot(event: AlarmEvent) -> dict:
         "llm_json_valid": event.llm_json_valid,
         "llm_model": event.llm_model,
         "prompt_version": event.prompt_version,
+        "context_manifest": event.context_manifest,
+        "evidence_replan": event.evidence_replan,
+        "failure_attributions": event.failure_attributions,
+        "repair_trace": event.repair_trace,
         "sop_retrieval": event.sop_retrieval,
         "rag_status": event.rag_status,
         "dispatch_decision": event.dispatch_decision,
         "dispatch_actions": event.dispatch_actions,
         "approval_id": event.approval_id,
         "approval_status": event.approval_status,
+        "execution_id": event.execution_id,
+        "execution_status": event.execution_status,
+        "execution_result": event.execution_result,
+        "execution_actions": event.execution_actions,
         "lifecycle_status": event.lifecycle_status,
         "timeline": event.timeline,
     }
@@ -76,6 +96,9 @@ def restore_event(snapshot: dict, alarm_dir: Path | None = None) -> AlarmEvent:
         ingest_key=str(snapshot.get("ingest_key") or ""),
         ingest_payload_hash=str(snapshot.get("ingest_payload_hash") or ""),
         camera_id=str(snapshot.get("camera_id") or ""),
+        evidence_id=str(snapshot.get("evidence_id") or ""),
+        owner_id=str(snapshot.get("owner_id") or ""),
+        execution_attempt=int(snapshot.get("execution_attempt") or 0),
         raw_json=dict(snapshot.get("raw_json") or {}),
         image_url=str(snapshot.get("image_url") or ""),
         llm_analysis=snapshot.get("llm_analysis"),
@@ -86,12 +109,20 @@ def restore_event(snapshot: dict, alarm_dir: Path | None = None) -> AlarmEvent:
         llm_json_valid=bool(snapshot.get("llm_json_valid", False)),
         llm_model=str(snapshot.get("llm_model") or ""),
         prompt_version=str(snapshot.get("prompt_version") or ""),
+        context_manifest=dict(snapshot.get("context_manifest") or {}),
+        evidence_replan=dict(snapshot.get("evidence_replan") or {}),
+        failure_attributions=list(snapshot.get("failure_attributions") or []),
+        repair_trace=dict(snapshot.get("repair_trace") or {}),
         sop_retrieval=dict(snapshot.get("sop_retrieval") or {}),
         rag_status=str(snapshot.get("rag_status") or "not_run"),
         dispatch_decision=dict(snapshot.get("dispatch_decision") or {}),
         dispatch_actions=list(snapshot.get("dispatch_actions") or []),
         approval_id=str(snapshot.get("approval_id") or ""),
         approval_status=str(snapshot.get("approval_status") or "auto"),
+        execution_id=str(snapshot.get("execution_id") or ""),
+        execution_status=str(snapshot.get("execution_status") or ""),
+        execution_result=str(snapshot.get("execution_result") or ""),
+        execution_actions=list(snapshot.get("execution_actions") or []),
         lifecycle_status=str(snapshot.get("lifecycle_status") or "analyzing"),
         timeline=list(snapshot.get("timeline") or []),
     )
@@ -136,6 +167,10 @@ class RunStore:
                     stage TEXT NOT NULL,
                     version INTEGER NOT NULL DEFAULT 1,
                     recovery_count INTEGER NOT NULL DEFAULT 0,
+                    owner_id TEXT,
+                    lease_until REAL,
+                    heartbeat_at REAL,
+                    execution_attempt INTEGER NOT NULL DEFAULT 0,
                     event_json TEXT NOT NULL,
                     last_error_type TEXT,
                     last_error_message TEXT,
@@ -164,6 +199,12 @@ class RunStore:
                 "ingest_key": "ALTER TABLE agent_runs ADD COLUMN ingest_key TEXT",
                 "ingest_payload_hash": "ALTER TABLE agent_runs ADD COLUMN ingest_payload_hash TEXT",
                 "camera_id": "ALTER TABLE agent_runs ADD COLUMN camera_id TEXT",
+                "owner_id": "ALTER TABLE agent_runs ADD COLUMN owner_id TEXT",
+                "lease_until": "ALTER TABLE agent_runs ADD COLUMN lease_until REAL",
+                "heartbeat_at": "ALTER TABLE agent_runs ADD COLUMN heartbeat_at REAL",
+                "execution_attempt": (
+                    "ALTER TABLE agent_runs ADD COLUMN execution_attempt INTEGER NOT NULL DEFAULT 0"
+                ),
             }
             for name, sql in migrations.items():
                 if name not in columns:
@@ -248,14 +289,93 @@ class RunStore:
             row = conn.execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
         return self._decode_row(row)
 
+    def claim_run(self, run_id: str, owner_id: str, lease_seconds: float,
+                  allowed_statuses: set[str] | None = None) -> dict | None:
+        """Atomically acquire an unowned or expired active Run and advance its fence."""
+        owner_id = str(owner_id or "").strip()
+        if not owner_id:
+            raise ValueError("owner_id_required")
+        lease_seconds = max(0.1, float(lease_seconds))
+        statuses = tuple(sorted(allowed_statuses or ACTIVE_STATUSES))
+        if not statuses:
+            return None
+        now_epoch = time.time()
+        placeholders = ",".join("?" for _ in statuses)
+        now_text = datetime.now().isoformat()
+        with self._lock, self._connection() as conn:
+            cursor = conn.execute(
+                "UPDATE agent_runs SET owner_id=?,lease_until=?,heartbeat_at=?,"
+                "execution_attempt=execution_attempt+1,version=version+1,updated_at=? "
+                f"WHERE run_id=? AND status IN ({placeholders}) "
+                "AND (owner_id IS NULL OR owner_id='' OR lease_until IS NULL OR lease_until<=?)",
+                (
+                    owner_id, now_epoch + lease_seconds, now_epoch, now_text,
+                    run_id, *statuses, now_epoch,
+                ),
+            )
+            if cursor.rowcount != 1:
+                return None
+            row = conn.execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+            return self._decode_row(row)
+
+    def renew_lease(self, run_id: str, owner_id: str, execution_attempt: int,
+                    lease_seconds: float) -> bool:
+        now_epoch = time.time()
+        statuses = tuple(sorted(ACTIVE_STATUSES))
+        placeholders = ",".join("?" for _ in statuses)
+        with self._lock, self._connection() as conn:
+            cursor = conn.execute(
+                "UPDATE agent_runs SET lease_until=?,heartbeat_at=?,updated_at=? "
+                "WHERE run_id=? AND owner_id=? AND execution_attempt=? "
+                f"AND lease_until>? AND status IN ({placeholders})",
+                (
+                    now_epoch + max(0.1, float(lease_seconds)), now_epoch,
+                    datetime.now().isoformat(), run_id, owner_id, int(execution_attempt),
+                    now_epoch, *statuses,
+                ),
+            )
+            return cursor.rowcount == 1
+
+    def release_run(self, run_id: str, owner_id: str, execution_attempt: int) -> bool:
+        with self._lock, self._connection() as conn:
+            cursor = conn.execute(
+                "UPDATE agent_runs SET owner_id=NULL,lease_until=NULL,heartbeat_at=NULL,"
+                "updated_at=? WHERE run_id=? AND owner_id=? AND execution_attempt=?",
+                (datetime.now().isoformat(), run_id, owner_id, int(execution_attempt)),
+            )
+            return cursor.rowcount == 1
+
+    def recover_expired_runs(self, limit: int = 100) -> list[dict]:
+        statuses = tuple(sorted(ACTIVE_STATUSES))
+        placeholders = ",".join("?" for _ in statuses)
+        now_epoch = time.time()
+        with self._lock, self._connection() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM agent_runs WHERE status IN ({placeholders}) "
+                "AND (owner_id IS NULL OR owner_id='' OR lease_until IS NULL OR lease_until<=?) "
+                "ORDER BY created_at LIMIT ?",
+                (*statuses, now_epoch, max(1, min(int(limit), 1000))),
+            ).fetchall()
+        return [self._decode_row(row) for row in rows]
+
+    def assert_fence(self, run_id: str, owner_id: str, execution_attempt: int) -> dict:
+        with self._lock, self._connection() as conn:
+            row = conn.execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+        if row is None:
+            raise KeyError(f"run_not_found:{run_id}")
+        self._require_fence(row, owner_id, execution_attempt)
+        return self._decode_row(row) or {}
+
     def transition(self, run_id: str, to_status: str, stage: str, detail: str = "",
                    event: AlarmEvent | None = None, expected: set[str] | None = None,
-                   error_type: str = "", error_message: str = "") -> dict:
+                   error_type: str = "", error_message: str = "",
+                   owner_id: str = "", execution_attempt: int | None = None) -> dict:
         now = datetime.now().isoformat()
         with self._lock, self._connection() as conn:
             row = conn.execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
             if not row:
                 raise KeyError(f"run_not_found:{run_id}")
+            self._require_fence(row, owner_id, execution_attempt)
             current = str(row["status"])
             if expected is not None and current not in expected:
                 raise RuntimeError(f"unexpected_run_state:{current}->{to_status}")
@@ -266,11 +386,22 @@ class RunStore:
                 json.dumps(event_snapshot(event), ensure_ascii=False, default=str)
                 if event is not None else row["event_json"]
             )
-            conn.execute(
+            release_owner = to_status not in ACTIVE_STATUSES
+            where_sql, where_params = self._fence_where(owner_id, execution_attempt)
+            cursor = conn.execute(
                 "UPDATE agent_runs SET status=?,stage=?,version=version+1,event_json=?,"
-                "last_error_type=?,last_error_message=?,updated_at=? WHERE run_id=?",
-                (to_status, stage, payload, error_type, error_message, now, run_id),
+                "last_error_type=?,last_error_message=?,updated_at=?,"
+                "owner_id=?,lease_until=?,heartbeat_at=? WHERE run_id=? " + where_sql,
+                (
+                    to_status, stage, payload, error_type, error_message, now,
+                    None if release_owner else row["owner_id"],
+                    None if release_owner else row["lease_until"],
+                    None if release_owner else row["heartbeat_at"],
+                    run_id, *where_params,
+                ),
             )
+            if cursor.rowcount != 1:
+                raise StaleRunOwnerError(run_id)
             conn.execute(
                 "INSERT INTO run_transitions "
                 "(run_id,from_status,to_status,stage,detail,created_at) VALUES (?,?,?,?,?,?)",
@@ -278,44 +409,70 @@ class RunStore:
             )
         return self.get(run_id) or {}
 
-    def mark_recovery_started(self, run_id: str, detail: str) -> None:
+    def mark_recovery_started(self, run_id: str, detail: str, *,
+                              owner_id: str = "",
+                              execution_attempt: int | None = None) -> None:
         now = datetime.now().isoformat()
         with self._lock, self._connection() as conn:
-            row = conn.execute("SELECT status FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+            row = conn.execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
             if not row:
                 raise KeyError(f"run_not_found:{run_id}")
-            conn.execute(
-                "UPDATE agent_runs SET recovery_count=recovery_count+1,updated_at=? WHERE run_id=?",
-                (now, run_id),
+            self._require_fence(row, owner_id, execution_attempt)
+            where_sql, where_params = self._fence_where(owner_id, execution_attempt)
+            cursor = conn.execute(
+                "UPDATE agent_runs SET recovery_count=recovery_count+1,updated_at=? "
+                "WHERE run_id=? " + where_sql,
+                (now, run_id, *where_params),
             )
+            if cursor.rowcount != 1:
+                raise StaleRunOwnerError(run_id)
             conn.execute(
                 "INSERT INTO run_transitions "
                 "(run_id,from_status,to_status,stage,detail,created_at) VALUES (?,?,?,?,?,?)",
                 (run_id, row["status"], row["status"], "recovery", detail, now),
             )
 
-    def save_snapshot(self, event: AlarmEvent) -> None:
+    def save_snapshot(self, event: AlarmEvent, *, owner_id: str = "",
+                      execution_attempt: int | None = None) -> None:
         payload = json.dumps(event_snapshot(event), ensure_ascii=False, default=str)
         with self._lock, self._connection() as conn:
-            conn.execute(
-                "UPDATE agent_runs SET event_json=?,version=version+1,updated_at=? WHERE run_id=?",
-                (payload, datetime.now().isoformat(), event.run_id),
+            row = conn.execute("SELECT * FROM agent_runs WHERE run_id=?", (event.run_id,)).fetchone()
+            if not row:
+                raise KeyError(f"run_not_found:{event.run_id}")
+            self._require_fence(row, owner_id, execution_attempt)
+            where_sql, where_params = self._fence_where(owner_id, execution_attempt)
+            cursor = conn.execute(
+                "UPDATE agent_runs SET event_json=?,version=version+1,updated_at=? "
+                "WHERE run_id=? " + where_sql,
+                (payload, datetime.now().isoformat(), event.run_id, *where_params),
             )
+            if cursor.rowcount != 1:
+                raise StaleRunOwnerError(event.run_id)
 
-    def patch_event(self, run_id: str, fields: dict) -> None:
+    def patch_event(self, run_id: str, fields: dict, *, owner_id: str = "",
+                    execution_attempt: int | None = None) -> None:
         with self._lock, self._connection() as conn:
             row = conn.execute("SELECT event_json FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
             if not row:
                 raise KeyError(f"run_not_found:{run_id}")
+            full_row = conn.execute("SELECT * FROM agent_runs WHERE run_id=?", (run_id,)).fetchone()
+            self._require_fence(full_row, owner_id, execution_attempt)
             try:
                 payload = json.loads(row["event_json"])
             except (TypeError, json.JSONDecodeError):
                 payload = {}
             payload.update(fields)
-            conn.execute(
-                "UPDATE agent_runs SET event_json=?,version=version+1,updated_at=? WHERE run_id=?",
-                (json.dumps(payload, ensure_ascii=False, default=str), datetime.now().isoformat(), run_id),
+            where_sql, where_params = self._fence_where(owner_id, execution_attempt)
+            cursor = conn.execute(
+                "UPDATE agent_runs SET event_json=?,version=version+1,updated_at=? "
+                "WHERE run_id=? " + where_sql,
+                (
+                    json.dumps(payload, ensure_ascii=False, default=str),
+                    datetime.now().isoformat(), run_id, *where_params,
+                ),
             )
+            if cursor.rowcount != 1:
+                raise StaleRunOwnerError(run_id)
 
     def list_active(self) -> list[dict]:
         placeholders = ",".join("?" for _ in ACTIVE_STATUSES)
@@ -334,12 +491,58 @@ class RunStore:
             ).fetchall()
         return [self._decode_row(row) for row in rows]
 
+    def list_recent(self, limit: int = 500) -> list[dict]:
+        """Return a bounded durable sample for read-only metrics projection."""
+        with self._lock, self._connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM agent_runs ORDER BY created_at DESC LIMIT ?",
+                (max(1, min(int(limit), 500)),),
+            ).fetchall()
+        return [self._decode_row(row) for row in rows]
+
+    def transitions_for_runs(self, run_ids: list[str]) -> list[dict]:
+        run_ids = [str(run_id) for run_id in run_ids if run_id]
+        if not run_ids:
+            return []
+        placeholders = ",".join("?" for _ in run_ids)
+        with self._lock, self._connection() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM run_transitions WHERE run_id IN ({placeholders}) "
+                "ORDER BY run_id,id",
+                tuple(run_ids),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def transitions(self, run_id: str) -> list[dict]:
         with self._lock, self._connection() as conn:
             rows = conn.execute(
                 "SELECT * FROM run_transitions WHERE run_id=? ORDER BY id", (run_id,)
             ).fetchall()
         return [dict(row) for row in rows]
+
+    @staticmethod
+    def _require_fence(row, owner_id: str, execution_attempt: int | None) -> None:
+        current_owner = str(row["owner_id"] or "")
+        if current_owner:
+            if (
+                not owner_id
+                or execution_attempt is None
+                or current_owner != owner_id
+                or int(row["execution_attempt"] or 0) != int(execution_attempt)
+                or float(row["lease_until"] or 0) <= time.time()
+            ):
+                raise StaleRunOwnerError(str(row["run_id"]))
+        elif owner_id or execution_attempt is not None:
+            raise StaleRunOwnerError(str(row["run_id"]))
+
+    @staticmethod
+    def _fence_where(owner_id: str, execution_attempt: int | None) -> tuple[str, tuple]:
+        if owner_id and execution_attempt is not None:
+            return (
+                "AND owner_id=? AND execution_attempt=? AND lease_until>?",
+                (owner_id, int(execution_attempt), time.time()),
+            )
+        return "AND (owner_id IS NULL OR owner_id='')", ()
 
     @staticmethod
     def _decode_row(row) -> dict | None:

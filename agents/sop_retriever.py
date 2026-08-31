@@ -119,6 +119,7 @@ class SOPRetriever:
                 "score": round(score, 4),
                 "matched_event_types": exact_event_matches,
                 "matched_keywords": keyword_matches,
+                "risk_levels": list(document["risk_levels"]),
             })
         results.sort(key=lambda item: (-item["score"], item["citation_id"]))
         citations = results[:self.top_k]

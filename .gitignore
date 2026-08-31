@@ -18,6 +18,12 @@ models/*.onnx
 models/*.engine
 runtime/
 logs/
+benchmarks/reports/*.checkpoint.json
+benchmarks/reports/multimodal_v26_conflict_diagnostics.*
+benchmarks/reports/multimodal_v26_latest.*
+benchmarks/reports/multimodal_v26_smoke.*
+/docs/agent_project_context.md
+/docs/agent_project_handbook.md
 /main.tex
 /Agent设计与答辩手册.md
 *.aux

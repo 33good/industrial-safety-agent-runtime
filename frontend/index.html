@@ -100,15 +100,6 @@
     </div>
     <div id="llm-card"><div class="hd">AI 视觉分析</div><div class="txt">等待触发</div></div>
     <div id="alarms"><div class="empty">等待报警事件</div></div>
-    <div id="demo-panel">
-      <div class="demo-head"><span>演示回放</span><small>CONTROLLED INPUT</small></div>
-      <div class="demo-actions">
-        <button type="button" class="demo-btn a" data-demo="a_person_vehicle">A 人车混行</button>
-        <button type="button" class="demo-btn b" data-demo="b_ppe">B 防护缺失</button>
-        <button type="button" class="demo-btn" data-demo="c_vehicle">C 车辆检测</button>
-      </div>
-      <div id="demo-status">复用真实Agent管线</div>
-    </div>
     <div id="ft"><span><span class="dot"></span>本地视觉 · 可信 Agent Runtime</span><span id="f-t">--:--:--</span></div>
   </aside>
 
@@ -128,6 +119,7 @@
 {"imports":{"three":"./vendor/three/build/three.module.js","three/addons/":"./vendor/three/examples/jsm/","@tweenjs/tween.js":"./vendor/tween/tween.esm.js"}}
 </script>
 
+<script src="/runtime-config.js"></script>
 <script type="module" src="./js/app.js?v=local-vision-1"></script>
 </body>
 </html>

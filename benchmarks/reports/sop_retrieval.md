@@ -1,6 +1,6 @@
 # SOP Retrieval Benchmark
 
-Catalog: `2026.08-demo.1`
+Catalog: `2026.08.1`
 
 | Metric | Value |
 |---|---:|

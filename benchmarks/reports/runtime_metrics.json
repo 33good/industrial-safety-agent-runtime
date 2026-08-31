@@ -1,0 +1,211 @@
+{
+  "benchmark": "industrial-agent-runtime-observability-v1",
+  "generated_at": "2026-08-31T14:32:33.851743+00:00",
+  "scope": "Measures concurrent SQLite control-plane writes, ingress uniqueness and durable metrics aggregation. It does not measure Qwen, detector or network-tool throughput.",
+  "configuration": {
+    "unique_runs": 32,
+    "duplicate_requests": 20,
+    "workers": 12
+  },
+  "summary": {
+    "cases": 6,
+    "passed": 6,
+    "failed": 0,
+    "pass_rate_pct": 100.0,
+    "observed_operations_per_second": 38.09
+  },
+  "load_observations": {
+    "unique_wall_ms": 1242.267,
+    "duplicate_wall_ms": 122.927,
+    "unique_operation_latency_ms": {
+      "count": 32,
+      "min": 27.933,
+      "mean": 268.044,
+      "p50": 35.307,
+      "p95": 1107.776,
+      "max": 1236.557
+    },
+    "duplicate_operation_latency_ms": {
+      "count": 20,
+      "min": 0.297,
+      "mean": 23.106,
+      "p50": 0.511,
+      "p95": 103.08,
+      "max": 116.691
+    }
+  },
+  "metrics_snapshot": {
+    "schema_version": "agent-runtime-metrics-v1",
+    "generated_at": "2026-08-31T14:32:33.851275+00:00",
+    "scope": {
+      "source": "durable_sqlite_projection",
+      "max_runs": 500,
+      "run_count": 33,
+      "oldest_created_at": "2026-08-31T22:32:32.277143",
+      "newest_created_at": "2026-08-31T22:32:33.519311",
+      "notes": "Run and tool metrics cover a bounded recent-run sample; capacity counters cover the current process lifetime. This is not a distributed SLA view."
+    },
+    "runs": {
+      "status_counts": {
+        "analyzing": 1,
+        "succeeded": 32
+      },
+      "outcome_count": 32,
+      "active_count": 1,
+      "success_rate_pct": 100.0,
+      "manual_takeover_rate_pct": 0.0,
+      "recovered_run_count": 0,
+      "recovery_attempt_count": 0,
+      "recovery_success_rate_pct": 0.0
+    },
+    "model": {
+      "status_counts": {
+        "success": 33
+      },
+      "fallback_count": 0,
+      "fallback_rate_pct": 0.0,
+      "repair_status_counts": {
+        "not_needed": 33
+      },
+      "repair_attempted_count": 0,
+      "repair_success_rate_pct": 0.0,
+      "evidence_relation_counts": {},
+      "evidence_review_required_count": 0,
+      "failure_stage_counts": {
+        "policy": 4
+      },
+      "failure_code_counts": {
+        "candidate_action_rejected": 4
+      },
+      "failure_resolution_counts": {
+        "guardrail": 4
+      }
+    },
+    "tools": {
+      "execution_count": 8,
+      "status_counts": {
+        "failed": 2,
+        "succeeded": 6
+      },
+      "success_rate_pct": 75.0,
+      "total_attempts": 10,
+      "retry_attempts": 2,
+      "retried_execution_count": 2,
+      "by_action": {
+        "database.store": {
+          "execution_count": 8,
+          "status_counts": {
+            "failed": 2,
+            "succeeded": 6
+          },
+          "success_rate_pct": 75.0,
+          "retry_attempts": 2,
+          "latency_ms": {
+            "count": 8,
+            "min": 14.056,
+            "mean": 15.283,
+            "p50": 14.957,
+            "p95": 16.771,
+            "max": 17.274
+          }
+        }
+      }
+    },
+    "latency_ms": {
+      "end_to_end": {
+        "count": 32,
+        "min": 20.46,
+        "mean": 258.054,
+        "p50": 25.706,
+        "p95": 1099.945,
+        "max": 1228.381
+      },
+      "ingest_to_decision": {
+        "count": 32,
+        "min": 6.062,
+        "mean": 210.596,
+        "p50": 7.761,
+        "p95": 997.365,
+        "max": 1212.074
+      },
+      "decision_to_execution": {
+        "count": 32,
+        "min": 6.41,
+        "mean": 10.677,
+        "p50": 7.9,
+        "p95": 25.331,
+        "max": 54.691
+      },
+      "execution_to_outcome": {
+        "count": 32,
+        "min": 6.067,
+        "mean": 36.781,
+        "p50": 7.904,
+        "p95": 214.147,
+        "max": 491.613
+      },
+      "approval_wait": {
+        "count": 0,
+        "min": null,
+        "mean": null,
+        "p50": null,
+        "p95": null,
+        "max": null
+      },
+      "model": {
+        "count": 33,
+        "min": 10.0,
+        "mean": 25.091,
+        "p50": 25.0,
+        "p95": 39.4,
+        "max": 41.0
+      },
+      "tool_execution": {
+        "count": 8,
+        "min": 14.056,
+        "mean": 15.283,
+        "p50": 14.957,
+        "p95": 16.771,
+        "max": 17.274
+      }
+    },
+    "capacity": {
+      "max_inflight": 2,
+      "inflight": 0,
+      "available": 2,
+      "rejected_total": 0
+    }
+  },
+  "results": [
+    {
+      "case_id": "concurrent_unique_runs_are_not_lost",
+      "passed": true,
+      "detail": "created=32/32"
+    },
+    {
+      "case_id": "concurrent_duplicate_ingress_has_one_owner",
+      "passed": true,
+      "detail": "created=1 run_ids=1"
+    },
+    {
+      "case_id": "durable_run_projection_is_consistent",
+      "passed": true,
+      "detail": "runs=33 statuses={'analyzing': 1, 'succeeded': 32}"
+    },
+    {
+      "case_id": "tool_retry_metrics_match_durable_rows",
+      "passed": true,
+      "detail": "{'execution_count': 8, 'status_counts': {'failed': 2, 'succeeded': 6}, 'success_rate_pct': 75.0, 'total_attempts': 10, 'retry_attempts': 2, 'retried_execution_count': 2, 'by_action': {'database.store': {'execution_count': 8, 'status_counts': {'failed': 2, 'succeeded': 6}, 'success_rate_pct': 75.0, 'retry_attempts': 2, 'latency_ms': {'count': 8, 'min': 14.056, 'mean': 15.283, 'p50': 14.957, 'p95': 16.771, 'max': 17.274}}}}"
+    },
+    {
+      "case_id": "stage_percentiles_are_well_formed",
+      "passed": true,
+      "detail": "end_to_end={'count': 32, 'min': 20.46, 'mean': 258.054, 'p50': 25.706, 'p95': 1099.945, 'max': 1228.381}"
+    },
+    {
+      "case_id": "capacity_scope_is_explicit",
+      "passed": true,
+      "detail": "{'max_inflight': 2, 'inflight': 0, 'available': 2, 'rejected_total': 0}"
+    }
+  ]
+}

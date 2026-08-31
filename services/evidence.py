@@ -31,7 +31,7 @@ FONT = _load_font()
 
 def annotate_image(image_bytes: bytes, events: list[dict]) -> bytes:
     """Draw risk evidence boxes while avoiding duplicated A-level labels."""
-    # Camera/demo evidence may be RGBA PNG. Convert before JPEG export so
+    # Camera or synthetic benchmark evidence may be RGBA PNG. Convert before JPEG export so
     # annotation never silently falls back to the unmarked source image.
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     draw = ImageDraw.Draw(image)

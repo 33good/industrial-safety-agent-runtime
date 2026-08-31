@@ -1,0 +1,3078 @@
+{
+  "experiment": "safety-v2.7 targeted evidence-conflict validation",
+  "status": "completed",
+  "conclusion_class": "C_low_detection_low_system_false_positive",
+  "should_run_full_40_case_benchmark": false,
+  "comparison_with_v26": {
+    "old_conflict_uncertainty_acknowledgement_pct": 0.0,
+    "v27_system_conflict_detection_recall_pct": 37.5,
+    "observed_change_percentage_points": 37.5,
+    "strictly_comparable": false,
+    "reason": "v2.7 introduced a structured evidence schema; old 0% measured conflict-uncertainty acknowledgement."
+  },
+  "environment": {
+    "provider": "local Ollama",
+    "provider_version": "0.32.5",
+    "model": "qwen2.5vl:7b",
+    "model_digest_prefix": "5ced39dfa4ba",
+    "real_model_inference": true,
+    "live_camera_or_device_used": false,
+    "image_source": "mixed offline replay: generated synthetic fixtures plus existing local A-scene replay fixture; no live stream",
+    "synthetic_replay_images_used": true,
+    "python": "3.13.5",
+    "platform": "Windows-11-10.0.26100-SP0",
+    "gpu": {
+      "name": "NVIDIA GeForce RTX 3080 Ti",
+      "driver_version": "581.80",
+      "memory_total_mib": 12288
+    }
+  },
+  "versions_and_hashes": {
+    "prompt_version": "safety-v2.7-separated-evidence",
+    "repair_prompt_version": "schema-repair-v1",
+    "context_builder_version": "context-builder-v1.0",
+    "grounding_policy_version": "final-sop-grounding-v1",
+    "evidence_schema_version": "evidence-assessment-v1",
+    "evidence_policy_version": "multimodal-conflict-policy-v1",
+    "sop_catalog_version": "2026.08.1",
+    "sop_catalog_sha256": "a1b05dba6d84cea7f9167d7adf348680cd6710c662882292b1d85d38694f9b55",
+    "full_dataset_sha256": "94351be16d133e074daa7d829fa3be98ee830b82c5dddbea8cf996994ef1d479",
+    "selected_case_set_sha256": "91054094a2f75ae120a9c7440a4e4fcda8a7454e8007fa76f44e3c9b1b756f1c",
+    "evidence_consistency_source_sha256": "62e472f5d78008c0b4656558abcec3d4b9a4a7a18e8b2aee194e149abb930485",
+    "prompt_source_sha256": "8dd667cfb76a8d5d4352cd0eb0fb7cde713ea01cc4c4f018a007884fe5730d71",
+    "dispatch_source_sha256": "7720fce71e7731e4824f36056d39e7f055cec1a7f149bd6f89e4b49d91fdff29"
+  },
+  "generation": {
+    "temperature": 0,
+    "seed": 20260712,
+    "num_predict": 700,
+    "repair_temperature": 0,
+    "repair_seed": 20260712,
+    "repair_num_predict": 500,
+    "context_token_budget": 1200,
+    "timeout_seconds": 120,
+    "variant": "grounded_sop_rag"
+  },
+  "execution": {
+    "first_scored_checkpoint_at_utc": "2026-08-06T07:32:24.323518+00:00",
+    "start_time_note": "Runner did not persist exact start; first checkpoint is an upper bound.",
+    "completed_at_utc": "2026-08-06T07:37:49.758860+00:00",
+    "warmup_trials_not_scored": 2,
+    "warmup_note": "Initial warmup plus identical warmup after shell-timeout resume.",
+    "raw_candidate_cases_run": 24,
+    "raw_candidate_trials_run": 72,
+    "formally_scored_cases": 16,
+    "formally_scored_trials": 48,
+    "extra_unscored_control_trials": 24,
+    "resumed_after_shell_timeout": true,
+    "checkpoint_fingerprint_enforced": true
+  },
+  "label_isolation": {
+    "verified": true,
+    "grader_only_fields": [
+      "case_id",
+      "category",
+      "input_mode",
+      "expected_level",
+      "expected_citations",
+      "expected_conflict"
+    ],
+    "model_context_fields": [
+      "source",
+      "camera_id",
+      "timestamp",
+      "normalized detections",
+      "bounded memory",
+      "retrieved SOP candidates",
+      "image bytes"
+    ],
+    "evidence_consistency_inputs": [
+      "image presence",
+      "detection presence",
+      "model visual observations",
+      "model detection observations",
+      "model relation",
+      "model conflict details"
+    ],
+    "note": "Category and input_mode exist in benchmark metadata but ContextBuilder does not inject them into model evidence."
+  },
+  "groups": {
+    "conflict": {
+      "case_count": 8,
+      "trial_count": 24,
+      "case_ids": [
+        "conflict_fire_image_vehicle_json",
+        "conflict_vehicle_image_fire_json",
+        "conflict_traffic_image_vehicle_json",
+        "conflict_ppe_image_vehicle_json",
+        "conflict_vehicle_image_ppe_json",
+        "conflict_fire_image_ppe_json",
+        "conflict_blank_vehicle_json",
+        "conflict_ppe_image_fire_json"
+      ]
+    },
+    "control": {
+      "case_count": 8,
+      "trial_count": 24,
+      "case_ids": [
+        "normal_helmet",
+        "normal_vehicle",
+        "normal_fire",
+        "normal_person_vehicle",
+        "degraded_helmet_blur",
+        "degraded_fire_occluded",
+        "degraded_traffic_json_only",
+        "degraded_ppe_image_only"
+      ]
+    }
+  },
+  "metrics": {
+    "three_layers": {
+      "qwen_declaration": {
+        "tp": 9,
+        "fp": 3,
+        "recall_pct": 37.5,
+        "false_positive_rate_pct": 12.5,
+        "precision_pct": 75.0
+      },
+      "evidence_consistency": {
+        "tp": 9,
+        "fp": 0,
+        "recall_pct": 37.5,
+        "false_positive_rate_pct": 0.0,
+        "precision_pct": 100.0
+      },
+      "conflict_review_policy": {
+        "tp": 9,
+        "fp": 0,
+        "recall_pct": 37.5,
+        "unnecessary_review_rate_pct": 0.0,
+        "precision_pct": 100.0
+      }
+    },
+    "conflict_group": {
+      "detail_paired_claim_completeness_pct": 100.0,
+      "detail_strict_all_fields_completeness_pct": 0.0,
+      "final_risk_non_downgrade_from_rule_pct": 100.0,
+      "autonomy_contraction_recall_pct": 37.5,
+      "autonomy_contraction_precision_pct": 100.0,
+      "trace_complete_pct": 100.0
+    },
+    "control_group": {
+      "normal_autonomy_preservation_pct": 100.0,
+      "final_risk_accuracy_pct": 87.5,
+      "trace_complete_pct": 100.0
+    },
+    "combined": {
+      "evidence_path_three_run_consistency_pct": 87.5,
+      "full_decision_three_run_consistency_pct": 81.25,
+      "structured_output_valid_pct": 100.0,
+      "repair_trial_rate_pct": 0.0,
+      "latency_p50_ms": 5890.9,
+      "latency_p95_ms": 8758.1
+    }
+  },
+  "safety_contract_checks": {
+    "conflict_rule_non_downgrade": {
+      "passed": true,
+      "count": "24/24"
+    },
+    "detected_b_or_c_conflict_not_disguised_as_a": {
+      "passed": true
+    },
+    "a_level_policy_preserved": {
+      "passed": true
+    },
+    "missing_modality_not_defaulted_to_system_conflict": {
+      "passed": true
+    },
+    "benchmark_actuator_commands": {
+      "passed": true,
+      "count": 0,
+      "note": "Model benchmark did not execute tools."
+    },
+    "review_close_contract_test": {
+      "passed": true,
+      "result": "7/7",
+      "external_command_count": 0,
+      "literal_internal_actuator_review_method_called": true,
+      "note": "Actuator.review stores a reviewed audit record with commands=[]; claim zero external commands, not zero method calls."
+    },
+    "stability_contract_tests": {
+      "passed": true,
+      "result": "42/42"
+    },
+    "trace_scope": {
+      "passed": true,
+      "note": "Decision trace only; no persisted Runtime run."
+    }
+  },
+  "per_case_summary": {
+    "normal_helmet": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "consistent",
+        "consistent",
+        "consistent"
+      ],
+      "system_relations": [
+        "consistent",
+        "consistent",
+        "consistent"
+      ],
+      "candidate_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ],
+      "final_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ]
+    },
+    "normal_vehicle": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "candidate_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ],
+      "final_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ]
+    },
+    "normal_fire": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "candidate_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ],
+      "final_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "normal_person_vehicle": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "consistent",
+        "consistent",
+        "consistent"
+      ],
+      "system_relations": [
+        "consistent",
+        "consistent",
+        "consistent"
+      ],
+      "candidate_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ],
+      "final_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "degraded_helmet_blur": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "candidate_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ],
+      "final_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ]
+    },
+    "degraded_fire_occluded": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "candidate_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ],
+      "final_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "degraded_traffic_json_only": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 3,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "conflict",
+        "conflict",
+        "conflict"
+      ],
+      "system_relations": [
+        "detections_only",
+        "detections_only",
+        "detections_only"
+      ],
+      "candidate_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ],
+      "final_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "degraded_ppe_image_only": {
+      "group": "control",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "image_only",
+        "image_only",
+        "image_only"
+      ],
+      "system_relations": [
+        "image_only",
+        "image_only",
+        "image_only"
+      ],
+      "candidate_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ],
+      "final_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ]
+    },
+    "conflict_fire_image_vehicle_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "consistent"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "consistent"
+      ],
+      "candidate_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ],
+      "final_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ]
+    },
+    "conflict_vehicle_image_fire_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 3,
+      "system_conflict_detections": 3,
+      "conflict_review_triggers": 3,
+      "model_relations": [
+        "conflict",
+        "conflict",
+        "conflict"
+      ],
+      "system_relations": [
+        "conflict",
+        "conflict",
+        "conflict"
+      ],
+      "candidate_risk_levels": [
+        "A",
+        "B",
+        "A"
+      ],
+      "final_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "conflict_traffic_image_vehicle_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 3,
+      "system_conflict_detections": 3,
+      "conflict_review_triggers": 3,
+      "model_relations": [
+        "conflict",
+        "conflict",
+        "conflict"
+      ],
+      "system_relations": [
+        "conflict",
+        "conflict",
+        "conflict"
+      ],
+      "candidate_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ],
+      "final_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ]
+    },
+    "conflict_ppe_image_vehicle_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "candidate_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ],
+      "final_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ]
+    },
+    "conflict_vehicle_image_ppe_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "candidate_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ],
+      "final_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ]
+    },
+    "conflict_fire_image_ppe_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "insufficient",
+        "insufficient",
+        "consistent"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "consistent"
+      ],
+      "candidate_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ],
+      "final_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ]
+    },
+    "conflict_blank_vehicle_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 3,
+      "system_conflict_detections": 3,
+      "conflict_review_triggers": 3,
+      "model_relations": [
+        "conflict",
+        "conflict",
+        "conflict"
+      ],
+      "system_relations": [
+        "conflict",
+        "conflict",
+        "conflict"
+      ],
+      "candidate_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ],
+      "final_risk_levels": [
+        "B",
+        "B",
+        "B"
+      ]
+    },
+    "conflict_ppe_image_fire_json": {
+      "group": "conflict",
+      "trials": 3,
+      "model_conflict_declarations": 0,
+      "system_conflict_detections": 0,
+      "conflict_review_triggers": 0,
+      "model_relations": [
+        "image_only",
+        "image_only",
+        "image_only"
+      ],
+      "system_relations": [
+        "insufficient",
+        "insufficient",
+        "insufficient"
+      ],
+      "candidate_risk_levels": [
+        "C",
+        "C",
+        "C"
+      ],
+      "final_risk_levels": [
+        "A",
+        "A",
+        "A"
+      ]
+    }
+  },
+  "failure_case_attribution": [
+    {
+      "case_id": "conflict_fire_image_vehicle_json",
+      "finding": "0/3 conflict detections",
+      "attribution": "Qwen did not recover fire evidence and returned insufficient/consistent with mostly empty separated visual observations."
+    },
+    {
+      "case_id": "conflict_ppe_image_vehicle_json",
+      "finding": "0/3 conflict detections",
+      "attribution": "Qwen emitted generic placeholder observations, so the PPE-versus-vehicle mismatch was not represented."
+    },
+    {
+      "case_id": "conflict_vehicle_image_ppe_json",
+      "finding": "0/3 conflict detections",
+      "attribution": "Qwen followed structured PPE evidence but did not articulate the vehicle-image mismatch."
+    },
+    {
+      "case_id": "conflict_fire_image_ppe_json",
+      "finding": "0/3 and unstable relation",
+      "attribution": "Qwen returned insufficient, insufficient, then consistent; one run saw FIRE text but still did not declare conflict."
+    },
+    {
+      "case_id": "conflict_ppe_image_fire_json",
+      "finding": "0/3 conflict detections",
+      "attribution": "Qwen incorrectly declared image_only despite JSON; EvidenceConsistency returned insufficient and the A rule baseline preserved risk."
+    },
+    {
+      "case_id": "degraded_traffic_json_only",
+      "finding": "Qwen false conflict in 3/3 controls",
+      "attribution": "Qwen treated missing video and JSON as conflict; EvidenceConsistency converted all to detections_only and prevented review false positives."
+    },
+    {
+      "case_id": "degraded_ppe_image_only",
+      "finding": "No conflict false positive, final C instead of grader B in 3/3",
+      "attribution": "Image-only VQA risk-recognition miss, not a conflict-governance error."
+    },
+    {
+      "case_id": "conflict_vehicle_image_fire_json",
+      "finding": "3/3 detected; candidate risk A/B/A",
+      "attribution": "Conflict stable but candidate risk unstable; deterministic A baseline restored final A."
+    },
+    {
+      "case_id": "conflict_traffic_image_vehicle_json",
+      "finding": "3/3 detected, final B versus grader A",
+      "attribution": "Mismatch found but scene severity underestimated; B stayed above structured C baseline."
+    },
+    {
+      "case_id": "conflict_blank_vehicle_json",
+      "finding": "3/3 detected, final B versus grader C",
+      "attribution": "Blank-frame mismatch caused conservative upgrade and reduced risk accuracy."
+    }
+  ],
+  "trial_records": [
+    {
+      "case_id": "normal_helmet",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [
+        {
+          "visual_claim": "人员未戴安全帽",
+          "detection_claim": "人员未佩戴安全帽",
+          "detail": "检测到人员未佩戴安全帽"
+        }
+      ],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 2192.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_helmet",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 7343.8,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_helmet",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 5906.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_vehicle",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4740.4,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_vehicle",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 5929.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_vehicle",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4048.6,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_fire",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "检测到火焰证据",
+        "火焰位于右上角"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "火焰位于右上角",
+          "detection_claim": "火焰位于右上角",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8967.2,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_fire",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "检测到火焰证据",
+        "火焰位于右上角"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "火焰位于右上角",
+          "detection_claim": "火焰位于右上角",
+          "detail": "一致"
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4101.8,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_fire",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "未见火焰证据",
+          "detection_claim": "检测到明确火焰证据",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 5890.9,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_person_vehicle",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "人员站在叉车附近，叉车上有人操作，周围有红色激光线指示安全区域。"
+      ],
+      "model_detection_observations": [
+        "检测到人员进入车辆通道并接近运行叉车。"
+      ],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [
+        {
+          "visual_claim": "人员站在叉车附近",
+          "detection_claim": "人员进入车辆通道并接近运行叉车",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8758.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_person_vehicle",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "人员站在叉车附近，叉车上有人操作，周围有红色激光线指示安全区域。"
+      ],
+      "model_detection_observations": [
+        "检测到人员进入车辆通道并接近运行叉车，存在人车混行风险。"
+      ],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [
+        {
+          "visual_claim": "人员站在叉车附近",
+          "detection_claim": "人员进入车辆通道并接近运行叉车",
+          "detail": ""
+        },
+        {
+          "visual_claim": "周围有红色激光线指示安全区域",
+          "detection_claim": "无",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8544.4,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "normal_person_vehicle",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "人员站在叉车附近，叉车上有人操作，周围有红色激光线指示安全区域。"
+      ],
+      "model_detection_observations": [
+        "检测到人员进入车辆通道并靠近叉车，存在人车混行风险。"
+      ],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [
+        {
+          "visual_claim": "人员站在叉车附近",
+          "detection_claim": "人员进入车辆通道并靠近叉车",
+          "detail": ""
+        },
+        {
+          "visual_claim": "红色激光线指示安全区域",
+          "detection_claim": "无",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6545.6,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_helmet_blur",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "未戴安全帽",
+          "detection_claim": "未戴安全帽",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8774.9,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_helmet_blur",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "未戴安全帽",
+          "detection_claim": "未戴安全帽",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 2070.0,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_helmet_blur",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "未戴安全帽",
+          "detection_claim": "未戴安全帽",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 2022.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_fire_occluded",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "火焰局部遮挡，时序检测置信度0.88"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "无火焰证据",
+          "detection_claim": "存在火焰证据",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 2941.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_fire_occluded",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "火焰局部遮挡，时序检测置信度0.88"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "无火焰证据",
+          "detection_claim": "存在火焰证据",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 2139.3,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_fire_occluded",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_json",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "火焰局部遮挡，时序检测置信度0.88"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "无火焰证据",
+          "detection_claim": "存在火焰证据",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6242.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_traffic_json_only",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "json_only",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "视频帧丢失",
+          "detection_claim": "人车近距离冲突",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "detections_only",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6382.3,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_traffic_json_only",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "json_only",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "视频帧丢失，无法确认具体细节"
+      ],
+      "model_detection_observations": [
+        "人车混行风险，需立即处理"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "视频帧丢失，无法确认具体细节",
+          "detection_claim": "人车混行风险，需立即处理",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "detections_only",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6521.8,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_traffic_json_only",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "json_only",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "视频帧丢失，无法确认具体场景"
+      ],
+      "model_detection_observations": [
+        "人车混行风险，需立即处理"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "视频帧丢失，无法确认具体场景",
+          "detection_claim": "人车混行风险，需立即处理",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "detections_only",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6296.6,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#5.1-separation@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_ppe_image_only",
+      "repetition": 1,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_only",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "最多4条、每条不超过50字"
+      ],
+      "model_evidence_relation": "image_only",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "image_only",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 5901.9,
+      "citation_result": {
+        "rag_status": "no_evidence",
+        "candidate": [],
+        "final": [],
+        "grounding_status": "no_evidence"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_ppe_image_only",
+      "repetition": 2,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_only",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "image_only",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "image_only",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8347.0,
+      "citation_result": {
+        "rag_status": "no_evidence",
+        "candidate": [],
+        "final": [],
+        "grounding_status": "no_evidence"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "degraded_ppe_image_only",
+      "repetition": 3,
+      "group": "control",
+      "expected_conflict": false,
+      "input_mode": "image_only",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "image_only",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "image_only",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6246.5,
+      "citation_result": {
+        "rag_status": "no_evidence",
+        "candidate": [],
+        "final": [],
+        "grounding_status": "no_evidence"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_fire_image_vehicle_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [],
+      "model_detection_observations": [],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "无火焰检测",
+          "detection_claim": "普通车辆检测",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8581.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_fire_image_vehicle_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 1977.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_fire_image_vehicle_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [],
+      "model_detection_observations": [],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [
+        {
+          "visual_claim": "无火焰检测",
+          "detection_claim": "普通车辆检测",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4338.6,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_vehicle_image_fire_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "图像中未显示火焰",
+          "detection_claim": "检测JSON报告存在火焰",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 1871.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_vehicle_image_fire_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "检测JSON报告明确火焰，但图像只显示车辆"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "图像中无火焰证据",
+          "detection_claim": "检测JSON报告存在火焰证据",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 3983.2,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_vehicle_image_fire_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "图像中未显示火焰",
+          "detection_claim": "检测JSON报告火焰",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "A",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 1910.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_traffic_image_vehicle_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "检测到叉车、货车和人员，但未报告人员的安全帽状态"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "人员未戴安全帽",
+          "detection_claim": "JSON未报告画面中的人员",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8312.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_traffic_image_vehicle_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "叉车和人员位于同一区域，且距离较近。"
+      ],
+      "model_detection_observations": [
+        "未检测到人员，仅报告车辆。"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "叉车与人员接近",
+          "detection_claim": "未检测到人员",
+          "detail": ""
+        },
+        {
+          "visual_claim": "",
+          "detection_claim": "",
+          "detail": "检测规则为C级"
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6526.3,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_traffic_image_vehicle_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "叉车和人员位于同一区域，且距离较近。"
+      ],
+      "model_detection_observations": [
+        "未检测到人员，仅报告车辆。"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "叉车与人员接近",
+          "detection_claim": "未检测到人员",
+          "detail": ""
+        },
+        {
+          "visual_claim": "",
+          "detection_claim": "",
+          "detail": "检测规则为C级"
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4305.6,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_ppe_image_vehicle_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4405.0,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_ppe_image_vehicle_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4103.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_ppe_image_vehicle_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "C",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_c",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 1974.0,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_vehicle_image_ppe_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "未戴安全帽的人员需要纠正并记录事件"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 2169.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_vehicle_image_ppe_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "未戴安全帽的人员需要纠正并记录事件"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 2117.2,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_vehicle_image_ppe_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "未戴安全帽的人员需要纠正并记录事件"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4214.8,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "final": [
+          "PPE-001#4.2-helmet@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_fire_image_ppe_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "未穿反光背心违规"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 4394.1,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.3-vest@1.2"
+        ],
+        "final": [
+          "PPE-001#4.3-vest@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_fire_image_ppe_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "LIFTING AREA",
+        "VEHICLE CHANNEL",
+        "HV EQUIPMENT FIRE"
+      ],
+      "model_detection_observations": [
+        "未穿反光背心"
+      ],
+      "model_evidence_relation": "insufficient",
+      "model_conflict_details": [
+        {
+          "visual_claim": "未穿反光背心违规",
+          "detection_claim": "未穿反光背心违规",
+          "detail": "检测JSON与截图均显示未穿反光背心"
+        }
+      ],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8597.9,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.3-vest@1.2"
+        ],
+        "final": [
+          "PPE-001#4.3-vest@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_fire_image_ppe_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "vision_dependent_exploratory",
+      "model_image_observations": [
+        "LIFTING AREA区域无人员，VEHICLE CHANNEL和HV EQUIPMENT FIRE区域均为空"
+      ],
+      "model_detection_observations": [
+        "未穿反光背心违规"
+      ],
+      "model_evidence_relation": "consistent",
+      "model_conflict_details": [
+        {
+          "visual_claim": "LIFTING AREA区域有人员",
+          "detection_claim": "未穿反光背心违规",
+          "detail": "检测JSON中报告PPE违规，但截图中无人员"
+        }
+      ],
+      "system_consistency_verdict": "consistent",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "B",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "auto_allow_b",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6527.5,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "PPE-001#4.3-vest@1.2"
+        ],
+        "final": [
+          "PPE-001#4.3-vest@1.2"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_blank_vehicle_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "空白帧与车辆检测JSON冲突"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "空白帧",
+          "detection_claim": "车辆检测",
+          "detail": ""
+        },
+        {
+          "visual_claim": "",
+          "detection_claim": "",
+          "detail": "空白帧与车辆检测JSON冲突"
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 8625.3,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_blank_vehicle_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "空白帧与车辆检测JSON冲突"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "空白帧",
+          "detection_claim": "车辆检测",
+          "detail": ""
+        },
+        {
+          "visual_claim": "",
+          "detection_claim": "空白帧",
+          "detail": ""
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6123.8,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_blank_vehicle_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "空白帧与车辆检测JSON冲突"
+      ],
+      "model_evidence_relation": "conflict",
+      "model_conflict_details": [
+        {
+          "visual_claim": "空白帧",
+          "detection_claim": "车辆检测",
+          "detail": ""
+        },
+        {
+          "visual_claim": "",
+          "detection_claim": "",
+          "detail": "空白帧与车辆检测JSON冲突"
+        }
+      ],
+      "system_consistency_verdict": "conflict",
+      "system_consistency_reason": "visual and structured evidence conflict requires operator review",
+      "rule_risk_level": "C",
+      "model_candidate_risk_level": "B",
+      "guardrail_final_risk_level": "B",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": false,
+      "conflict_manual_review_required": true,
+      "human_loop_behavior": "hold_for_multimodal_evidence_conflict",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 6543.8,
+      "citation_result": {
+        "rag_status": "grounded",
+        "candidate": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "final": [
+          "TRAFFIC-002#3.4-vehicle-monitoring@2.0"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_ppe_image_fire_json",
+      "repetition": 1,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [
+        "仅来自图像的可见事实"
+      ],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "image_only",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 1722.9,
+      "citation_result": {
+        "rag_status": "citation_missing",
+        "candidate": [],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_ppe_image_fire_json",
+      "repetition": 2,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "image_only",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 1240.0,
+      "citation_result": {
+        "rag_status": "citation_missing",
+        "candidate": [],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    },
+    {
+      "case_id": "conflict_ppe_image_fire_json",
+      "repetition": 3,
+      "group": "conflict",
+      "expected_conflict": true,
+      "input_mode": "conflict",
+      "evaluation_scope": "runtime_contract",
+      "model_image_observations": [],
+      "model_detection_observations": [
+        "仅来自检测JSON的事实"
+      ],
+      "model_evidence_relation": "image_only",
+      "model_conflict_details": [],
+      "system_consistency_verdict": "insufficient",
+      "system_consistency_reason": "no actionable cross-modal conflict established",
+      "rule_risk_level": "A",
+      "model_candidate_risk_level": "C",
+      "guardrail_final_risk_level": "A",
+      "final_non_downgrade_from_rule": true,
+      "autonomous_action_allowed": true,
+      "conflict_manual_review_required": false,
+      "human_loop_behavior": "hold_for_high_risk_approval",
+      "human_loop_observation_scope": "projection from frozen policy; benchmark did not execute tools",
+      "actuator_invoked_by_model_benchmark": false,
+      "external_actuator_command_count": 0,
+      "structured_output_valid": true,
+      "repair_status": "not_needed",
+      "repair_attempt_count": 0,
+      "latency_ms": 1251.2,
+      "citation_result": {
+        "rag_status": "citation_missing",
+        "candidate": [],
+        "final": [
+          "FIRE-003#6.1-initial-response@1.1"
+        ],
+        "grounding_status": "grounded"
+      },
+      "trace_validation": {
+        "valid": true,
+        "scope": "benchmark decision trace; not persisted Runtime trace"
+      }
+    }
+  ],
+  "interpretation": {
+    "result_class": "C",
+    "reason": "System recall 37.5%, system false-positive rate 0%. Most misses are Qwen observation/relation failures; EvidenceConsistency contains missing-modality false declarations but cannot infer absent visual semantics.",
+    "full_40_case_recommendation": "Do not run the full 40-case benchmark yet."
+  }
+}

@@ -8,6 +8,13 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime
 
+from agents.memory import (
+    MEMORY_POLICY_VERSION,
+    ensure_memory_schema,
+    event_camera_id,
+    memory_facts_for_event,
+)
+
 
 class DatabaseTool:
     def __init__(self, db_path: str = "./data/alarms.db"):
@@ -34,6 +41,7 @@ class DatabaseTool:
                     event_id TEXT,
                     run_id TEXT,
                     trace_id TEXT,
+                    camera_id TEXT,
                     timestamp TEXT NOT NULL,
                     event_types TEXT NOT NULL,
                     level TEXT NOT NULL,
@@ -73,6 +81,7 @@ class DatabaseTool:
             "event_id": "ALTER TABLE alarms ADD COLUMN event_id TEXT",
             "run_id": "ALTER TABLE alarms ADD COLUMN run_id TEXT",
             "trace_id": "ALTER TABLE alarms ADD COLUMN trace_id TEXT",
+            "camera_id": "ALTER TABLE alarms ADD COLUMN camera_id TEXT",
             "llm_recommendation": "ALTER TABLE alarms ADD COLUMN llm_recommendation TEXT",
             "llm_model": "ALTER TABLE alarms ADD COLUMN llm_model TEXT",
             "prompt_version": "ALTER TABLE alarms ADD COLUMN prompt_version TEXT",
@@ -93,6 +102,7 @@ class DatabaseTool:
         for name, sql in migrations.items():
             if name not in columns:
                 conn.execute(sql)
+        ensure_memory_schema(conn)
 
     def handle(self, event, action="store"):
         """处理数据库操作"""
@@ -222,6 +232,7 @@ class DatabaseTool:
         event_id = getattr(event, "event_id", "")
         run_id = getattr(event, "run_id", "")
         trace_id = getattr(event, "trace_id", "")
+        camera_id = event_camera_id(event)
         approval_id = getattr(event, "approval_id", "")
         approval_status = getattr(event, "approval_status", "")
         execution_id = getattr(event, "execution_id", "")
@@ -232,18 +243,33 @@ class DatabaseTool:
         timeline = json.dumps(getattr(event, "timeline", []) or [], ensure_ascii=False)
 
         with self._lock, self._connection() as conn:
-            conn.execute(
-                "INSERT INTO alarms (event_id, run_id, trace_id, timestamp, event_types, level, detail, bbox_json, llm_analysis, "
+            cursor = conn.execute(
+                "INSERT INTO alarms (event_id, run_id, trace_id, camera_id, timestamp, event_types, level, detail, bbox_json, llm_analysis, "
                 "llm_recommendation, llm_model, prompt_version, sop_retrieval, rag_status, dispatch_decision, dispatch_actions, approval_id, approval_status, "
                 "execution_id, execution_status, execution_result, execution_actions, lifecycle_status, timeline, image_path) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    event_id, run_id, trace_id, event.timestamp, event_types, level, detail, bbox_json, event.llm_analysis,
+                    event_id, run_id, trace_id, camera_id, event.timestamp, event_types,
+                    level, detail, bbox_json, event.llm_analysis,
                     llm_recommendation, llm_model, prompt_version, sop_retrieval, rag_status,
                     dispatch_decision, dispatch_actions, approval_id, approval_status,
                     execution_id, execution_status, execution_result, execution_actions, lifecycle_status, timeline, image_path
                 )
             )
+            alarm_id = int(cursor.lastrowid)
+            for fact in memory_facts_for_event(event):
+                conn.execute(
+                    "INSERT OR IGNORE INTO alarm_memory_facts "
+                    "(alarm_id,event_id,run_id,camera_id,event_family,zone,"
+                    "event_types_json,level,policy_version) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (
+                        alarm_id, event_id or None, run_id or None,
+                        fact["camera_id"], fact["event_family"], fact["zone"],
+                        json.dumps(fact["event_types"], ensure_ascii=False),
+                        fact["level"], MEMORY_POLICY_VERSION,
+                    ),
+                )
         return f"已存入数据库 (total={self.count()})"
 
     def count(self) -> int:

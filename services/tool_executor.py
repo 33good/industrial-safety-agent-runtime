@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
+from .run_store import ACTIVE_STATUSES, StaleRunOwnerError
+
 
 POLICY_VERSION = "tool-policy-v1"
 
@@ -59,8 +61,6 @@ class ToolOutcome:
             "reused": self.reused,
             "error_type": self.error_type,
         }
-
-
 class ToolExecutionStore:
     def __init__(self, database_path: str):
         self.database_path = str(database_path)
@@ -92,6 +92,8 @@ class ToolExecutionStore:
                     tool TEXT NOT NULL,
                     action TEXT NOT NULL,
                     status TEXT NOT NULL,
+                    owner_id TEXT,
+                    execution_attempt INTEGER,
                     attempts INTEGER NOT NULL DEFAULT 0,
                     result_json TEXT,
                     error_type TEXT,
@@ -103,6 +105,17 @@ class ToolExecutionStore:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tool_runs ON tool_executions(run_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tool_events ON tool_executions(event_id)")
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(tool_executions)").fetchall()}
+            if "owner_id" not in columns:
+                conn.execute("ALTER TABLE tool_executions ADD COLUMN owner_id TEXT")
+            if "execution_attempt" not in columns:
+                conn.execute("ALTER TABLE tool_executions ADD COLUMN execution_attempt INTEGER")
+
+    def assert_fence(self, run_id: str, owner_id: str, execution_attempt: int | None) -> None:
+        if not owner_id and execution_attempt is None:
+            return
+        with self._lock, self._connection() as conn:
+            self._assert_fence_conn(conn, run_id, owner_id, execution_attempt)
 
     def get(self, idempotency_key: str) -> dict | None:
         with self._lock, self._connection() as conn:
@@ -118,37 +131,101 @@ class ToolExecutionStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def list_for_runs(self, run_ids: list[str]) -> list[dict]:
+        run_ids = [str(run_id) for run_id in run_ids if run_id]
+        if not run_ids:
+            return []
+        placeholders = ",".join("?" for _ in run_ids)
+        with self._lock, self._connection() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM tool_executions WHERE run_id IN ({placeholders}) "
+                "ORDER BY id",
+                tuple(run_ids),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def begin(self, *, execution_id: str, run_id: str, event_id: str, step_id: str,
-              idempotency_key: str, tool: str, action: str) -> None:
+              idempotency_key: str, tool: str, action: str,
+              owner_id: str = "", execution_attempt: int | None = None) -> None:
         now = datetime.now().isoformat()
         with self._lock, self._connection() as conn:
+            self._assert_fence_conn(conn, run_id, owner_id, execution_attempt)
             conn.execute(
                 "INSERT INTO tool_executions "
-                "(execution_id,run_id,event_id,step_id,idempotency_key,policy_version,tool,action,status,started_at,updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "(execution_id,run_id,event_id,step_id,idempotency_key,policy_version,"
+                "tool,action,status,owner_id,execution_attempt,started_at,updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (execution_id, run_id, event_id, step_id, idempotency_key, POLICY_VERSION,
-                 tool, action, "running", now, now),
+                 tool, action, "running", owner_id or None, execution_attempt, now, now),
             )
 
     def record_attempt(self, idempotency_key: str, attempts: int, error_type: str = "",
-                       error_message: str = "") -> None:
+                       error_message: str = "", *, run_id: str = "",
+                       owner_id: str = "", execution_attempt: int | None = None) -> None:
         with self._lock, self._connection() as conn:
-            conn.execute(
-                "UPDATE tool_executions SET attempts=?,error_type=?,error_message=?,updated_at=? "
-                "WHERE idempotency_key=?",
-                (attempts, error_type, error_message, datetime.now().isoformat(), idempotency_key),
+            self._assert_fence_conn(conn, run_id, owner_id, execution_attempt)
+            fence_sql, fence_params = self._execution_fence_where(
+                run_id, owner_id, execution_attempt
             )
+            cursor = conn.execute(
+                "UPDATE tool_executions SET attempts=?,error_type=?,error_message=?,updated_at=? "
+                "WHERE idempotency_key=? " + fence_sql,
+                (
+                    attempts, error_type, error_message, datetime.now().isoformat(),
+                    idempotency_key, *fence_params,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise StaleRunOwnerError(run_id)
 
     def finish(self, idempotency_key: str, status: str, result: Any = None,
-               error_type: str = "", error_message: str = "") -> None:
+               error_type: str = "", error_message: str = "", *, run_id: str = "",
+               owner_id: str = "", execution_attempt: int | None = None) -> None:
         result_json = json.dumps(result, ensure_ascii=False, default=str)
         now = datetime.now().isoformat()
         with self._lock, self._connection() as conn:
-            conn.execute(
-                "UPDATE tool_executions SET status=?,result_json=?,error_type=?,error_message=?,"
-                "completed_at=?,updated_at=? WHERE idempotency_key=?",
-                (status, result_json, error_type, error_message, now, now, idempotency_key),
+            self._assert_fence_conn(conn, run_id, owner_id, execution_attempt)
+            fence_sql, fence_params = self._execution_fence_where(
+                run_id, owner_id, execution_attempt
             )
+            cursor = conn.execute(
+                "UPDATE tool_executions SET status=?,result_json=?,error_type=?,error_message=?,"
+                "completed_at=?,updated_at=? WHERE idempotency_key=? " + fence_sql,
+                (
+                    status, result_json, error_type, error_message, now, now,
+                    idempotency_key, *fence_params,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise StaleRunOwnerError(run_id)
+
+    @staticmethod
+    def _execution_fence_where(run_id: str, owner_id: str,
+                               execution_attempt: int | None) -> tuple[str, tuple]:
+        if owner_id and execution_attempt is not None:
+            return (
+                "AND run_id=? AND owner_id=? AND execution_attempt=?",
+                (run_id, owner_id, int(execution_attempt)),
+            )
+        return "", ()
+
+    @staticmethod
+    def _assert_fence_conn(conn, run_id: str, owner_id: str,
+                           execution_attempt: int | None) -> None:
+        if not owner_id and execution_attempt is None:
+            return
+        row = conn.execute(
+            "SELECT run_id,owner_id,execution_attempt,lease_until,status "
+            "FROM agent_runs WHERE run_id=?", (run_id,),
+        ).fetchone()
+        if (
+            row is None
+            or str(row["owner_id"] or "") != owner_id
+            or int(row["execution_attempt"] or 0) != int(execution_attempt or 0)
+            or float(row["lease_until"] or 0) <= time.time()
+            or str(row["status"] or "") not in ACTIVE_STATUSES
+        ):
+            raise StaleRunOwnerError(run_id)
 
 
 class ToolExecutor:
@@ -177,11 +254,16 @@ class ToolExecutor:
 
         run_id = str(getattr(event, "run_id", "") or "")
         event_id = str(getattr(event, "event_id", "") or "")
+        owner_id = str(getattr(event, "owner_id", "") or "")
+        execution_attempt = getattr(event, "execution_attempt", None)
+        if not owner_id:
+            execution_attempt = None
         identity = f"{event_id}|{tool}.{action}|{POLICY_VERSION}"
         idempotency_key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
         key_lock = self._key_lock(idempotency_key)
 
         with key_lock:
+            self.store.assert_fence(run_id, owner_id, execution_attempt)
             existing = self.store.get(idempotency_key)
             if existing:
                 return self._existing_outcome(existing)
@@ -196,27 +278,42 @@ class ToolExecutor:
                 idempotency_key=idempotency_key,
                 tool=tool,
                 action=action,
+                owner_id=owner_id,
+                execution_attempt=execution_attempt,
             )
             spec = self._specs.get(tool) or ToolSpec(name=tool)
             for attempt in range(1, spec.max_attempts + 1):
                 try:
                     result = handler(event, action)
-                    self.store.record_attempt(idempotency_key, attempt)
-                    self.store.finish(idempotency_key, "succeeded", result=result)
+                    self.store.record_attempt(
+                        idempotency_key, attempt, run_id=run_id,
+                        owner_id=owner_id, execution_attempt=execution_attempt,
+                    )
+                    self.store.finish(
+                        idempotency_key, "succeeded", result=result, run_id=run_id,
+                        owner_id=owner_id, execution_attempt=execution_attempt,
+                    )
                     return ToolOutcome(
                         status="succeeded", result=result, attempts=attempt,
                         execution_id=execution_id, step_id=step_id,
                         idempotency_key=idempotency_key,
                     )
+                except StaleRunOwnerError:
+                    raise
                 except Exception as exc:
                     error_type, transient = self._classify_error(exc)
-                    self.store.record_attempt(idempotency_key, attempt, error_type, str(exc))
+                    self.store.record_attempt(
+                        idempotency_key, attempt, error_type, str(exc), run_id=run_id,
+                        owner_id=owner_id, execution_attempt=execution_attempt,
+                    )
                     if transient and attempt < spec.max_attempts:
                         if spec.backoff_seconds:
                             time.sleep(spec.backoff_seconds * (2 ** (attempt - 1)))
                         continue
                     self.store.finish(
-                        idempotency_key, "failed", error_type=error_type, error_message=str(exc)
+                        idempotency_key, "failed", error_type=error_type,
+                        error_message=str(exc), run_id=run_id, owner_id=owner_id,
+                        execution_attempt=execution_attempt,
                     )
                     return ToolOutcome(
                         status="failed", attempts=attempt, execution_id=execution_id,

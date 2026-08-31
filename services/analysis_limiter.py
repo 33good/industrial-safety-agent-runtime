@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from collections.abc import Callable
 
 
@@ -17,6 +18,7 @@ class AnalysisLimiter:
         self.max_inflight = max(1, int(max_inflight))
         self._slots = threading.BoundedSemaphore(self.max_inflight)
         self._lock = threading.Lock()
+        self._idle = threading.Condition(self._lock)
         self._inflight = 0
         self._rejected = 0
 
@@ -36,11 +38,23 @@ class AnalysisLimiter:
             finally:
                 with self._lock:
                     self._inflight -= 1
+                    self._idle.notify_all()
                 self._slots.release()
                 completed.set()
 
         threading.Thread(target=run, name=name, daemon=True).start()
         return completed
+
+    def wait_for_idle(self, timeout: float) -> bool:
+        """Wait for model transport workers without releasing their capacity early."""
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        with self._idle:
+            while self._inflight:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                self._idle.wait(remaining)
+            return True
 
     def status(self) -> dict:
         with self._lock:

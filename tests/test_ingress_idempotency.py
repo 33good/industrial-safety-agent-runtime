@@ -15,9 +15,32 @@ from types import SimpleNamespace
 from agents import AlarmEvent
 from backend import ApiHandler
 from services.agent_runtime import AgentRuntime
-from services.demo_scenarios import demo_alarm_body
+from benchmarks.scenario_fixtures import scenario_alarm_body
 from services.run_store import IngestConflictError, RunStore
 from services.tool_executor import ToolSpec
+
+
+def _test_context_manifest():
+    return {
+        "schema_version": "agent-context-v1",
+        "builder_version": "context-builder-v1.0",
+        "status": "built",
+        "token_budget": 1200,
+        "estimated_tokens": 1,
+        "budget_utilization_pct": 0.08,
+        "budget_overflow_tokens": 0,
+        "truncated": False,
+        "critical_evidence_retained": True,
+        "input_item_count": 0,
+        "selected_item_count": 0,
+        "dropped_item_count": 0,
+        "selected_items": [],
+        "dropped_items": [],
+        "selected_citation_ids": [],
+        "context_sha256": "c" * 64,
+        "model_input_sha256": "m" * 64,
+        "source_versions": {},
+    }
 
 
 class Broadcaster:
@@ -59,7 +82,7 @@ def settings_for(root: Path):
 
 
 def alarm_body(camera_id="camera-01"):
-    body = demo_alarm_body("b_ppe")
+    body = scenario_alarm_body("b_ppe")
     body["cameraId"] = camera_id
     return body
 
@@ -75,6 +98,14 @@ class IngressIdempotencyTests(unittest.TestCase):
             event.llm_json_valid = True
             event.llm_recommendation = {"risk_level": "B", "confidence": 0.95}
             event.llm_analysis = "idempotency-test"
+            event.llm_model = "mock"
+            event.prompt_version = "test-prompt-v1"
+            event.context_manifest = _test_context_manifest()
+            event.sop_retrieval = {
+                "status": "no_evidence", "catalog_version": "test-catalog-v1",
+                "citations": [], "refusal_reason": "test",
+            }
+            event.rag_status = "refused_no_evidence"
             return event.llm_analysis
 
         runtime.safety.analyze = analyze
@@ -94,6 +125,8 @@ class IngressIdempotencyTests(unittest.TestCase):
                 return runtime.ingest_detection(
                     body, image, source="external", source_event_id=source_event_id,
                 )
+
+        HttpApplication.runtime = runtime
 
         previous_app = ApiHandler.app
         ApiHandler.app = HttpApplication()
@@ -122,6 +155,17 @@ class IngressIdempotencyTests(unittest.TestCase):
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         try:
             connection.request("POST", "/alarm", body=payload, headers=headers)
+            response = connection.getresponse()
+            response_body = json.loads(response.read().decode("utf-8"))
+            return response.status, response_body
+        finally:
+            connection.close()
+
+    @staticmethod
+    def _get_json(port, path):
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
             response = connection.getresponse()
             response_body = json.loads(response.read().decode("utf-8"))
             return response.status, response_body
@@ -443,6 +487,40 @@ class IngressIdempotencyTests(unittest.TestCase):
             self.assertEqual(self._run_count(runtime), 1)
             self._wait_for_terminal(runtime, first["run_id"])
             self._wait_for_pipeline_messages(broadcaster, 1)
+
+    def test_http_trace_endpoint_returns_valid_end_to_end_trace(self):
+        with tempfile.TemporaryDirectory() as tmp, self._http_runtime(Path(tmp)) as context:
+            runtime, broadcaster, _, port = context
+            status, created = self._post_alarm(
+                port, alarm_body(), idempotency_key="http-trace-001",
+            )
+            self.assertEqual(status, 200)
+            self._wait_for_terminal(runtime, created["run_id"])
+            self._wait_for_pipeline_messages(broadcaster, 1)
+
+            trace_status, trace = self._get_json(port, f"/traces/{created['run_id']}")
+            self.assertEqual(trace_status, 200)
+            self.assertEqual(trace["run"]["run_id"], created["run_id"])
+            self.assertEqual(trace["run"]["trace_id"], created["trace_id"])
+            self.assertTrue(trace["evidence"]["evidence_id"].startswith("EVID_"))
+            self.assertTrue(trace["validation"]["valid"], trace["validation"]["errors"])
+
+    def test_http_runtime_metrics_endpoint_projects_completed_run(self):
+        with tempfile.TemporaryDirectory() as tmp, self._http_runtime(Path(tmp)) as context:
+            runtime, broadcaster, _, port = context
+            status, created = self._post_alarm(
+                port, alarm_body(), idempotency_key="http-metrics-001",
+            )
+            self.assertEqual(status, 200)
+            self._wait_for_terminal(runtime, created["run_id"])
+            self._wait_for_pipeline_messages(broadcaster, 1)
+
+            metrics_status, metrics = self._get_json(port, "/metrics/runtime?limit=10")
+            self.assertEqual(metrics_status, 200)
+            self.assertEqual(metrics["schema_version"], "agent-runtime-metrics-v1")
+            self.assertEqual(metrics["scope"]["run_count"], 1)
+            self.assertEqual(metrics["runs"]["status_counts"].get("succeeded"), 1)
+            self.assertEqual(metrics["latency_ms"]["end_to_end"]["count"], 1)
 
     def test_http_overlong_idempotency_key_returns_400(self):
         with tempfile.TemporaryDirectory() as tmp, self._http_runtime(Path(tmp)) as context:

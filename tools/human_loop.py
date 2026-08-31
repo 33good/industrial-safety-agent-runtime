@@ -14,6 +14,23 @@ from datetime import datetime
 class HumanLoopTool:
     """人工审批拦截器"""
 
+    # These orders resolve evidence uncertainty only.  Approving them records
+    # the operator review and must never be interpreted as authorization for a
+    # high-risk actuator command.
+    REVIEW_ONLY_HOLD_REASONS = frozenset({
+        "multimodal_evidence_conflict",
+        "model_requested_evidence_review",
+        "temporal_evidence_unresolved",
+        "temporal_evidence_unavailable",
+        "temporal_evidence_no_evidence",
+        "temporal_evidence_failed",
+        "evidence_replan_capacity_exhausted",
+        "evidence_replan_timeout",
+        "evidence_replan_model_failed",
+        "replan_risk_downgrade_requires_review",
+        "evidence_review_required",
+    })
+
     def __init__(self, pending_dir: str = "./data/pending"):
         os.makedirs(pending_dir, exist_ok=True)
         self.pending_dir = pending_dir
@@ -43,6 +60,16 @@ class HumanLoopTool:
             levels = {e.get("level", "B") for e in event.events}
             top_level = "A" if "A" in levels else ("B" if "B" in levels else "C")
 
+        evidence_policy = decision.get("evidence_policy") or {}
+        if evidence_policy.get("review_required") is True:
+            hold_reason = str(
+                evidence_policy.get("review_reason") or "multimodal_evidence_conflict"
+            )
+            if hold_reason not in self.REVIEW_ONLY_HOLD_REASONS:
+                hold_reason = "evidence_review_required"
+            return self._hold_for_approval(
+                event, level=top_level, hold_reason=hold_reason
+            )
         if top_level == "A":
             return self._hold_for_approval(event)
         elif top_level == "B":
@@ -50,7 +77,8 @@ class HumanLoopTool:
         else:
             return self._auto_approve(event, "C级自动通过")
 
-    def _hold_for_approval(self, event) -> str:
+    def _hold_for_approval(self, event, *, level: str = "A",
+                           hold_reason: str = "high_risk") -> str:
         """拦截高危指令，创建待审批工单"""
         events_desc = ", ".join(e["type"] for e in event.events)
         pending_id = datetime.now().strftime("PENDING_%Y%m%d_%H%M%S_%f")
@@ -63,7 +91,8 @@ class HumanLoopTool:
             "trace_id": getattr(event, "trace_id", ""),
             "timestamp": event.timestamp,
             "events": events_desc,
-            "level": "A",
+            "level": level,
+            "hold_reason": hold_reason,
             "llm_analysis": event.llm_analysis or "待人工审核",
             "llm_recommendation": getattr(event, "llm_recommendation", {}) or {},
             "dispatch_decision": getattr(event, "dispatch_decision", {}) or {},
@@ -83,14 +112,14 @@ class HumanLoopTool:
         event.lifecycle_status = "pending_approval"
 
         print(f"\n{'!' * 60}")
-        print(f"[可信拦截] A级高危事件被拦截！")
+        print(f"[可信拦截] {level}级事件进入人工复核！")
         print(f"  工单: {pending_id}")
         print(f"  事件: {events_desc}")
         print(f"  状态: 等待安全员审批...")
-        print(f"  操作: 系统自动关停指令已被拦截，需人工确认后执行")
+        print(f"  操作: 自动处置已被拦截，需人工确认后执行")
         print(f"{'!' * 60}\n")
 
-        return f"已拦截并生成审批工单 {pending_id}，等待人工确认"
+        return f"已拦截并生成审批工单 {pending_id}，原因 {hold_reason}"
 
     def _auto_approve(self, event, reason: str) -> str:
         """自动放行非高危事件"""

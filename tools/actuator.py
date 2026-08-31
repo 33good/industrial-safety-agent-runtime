@@ -19,6 +19,8 @@ class ActuatorTool:
             return self.execute(order)
         if action == "cancel":
             return self.cancel(order)
+        if action == "review":
+            return self.review(order)
         return {"status": "unknown", "detail": f"unknown actuator action: {action}"}
 
     def execute(self, order: dict) -> dict:
@@ -64,6 +66,31 @@ class ActuatorTool:
         }
         self._write(result)
         print(f"[Actuator] {execution_id} event={event_id or '-'} status=cancelled")
+        return result
+
+    def review(self, order: dict) -> dict:
+        """Persist operator confirmation without creating an actuator command."""
+        event_id = order.get("event_id", "")
+        approval_id = order.get("id") or order.get("approval_id", "")
+        hold_reason = str(order.get("hold_reason") or "evidence_review")[:120]
+        execution_id = self._execution_id(approval_id)
+        existing = self._load(execution_id)
+        if existing:
+            return {**existing, "reused": True}
+        result = {
+            "execution_id": execution_id,
+            "event_id": event_id,
+            "approval_id": approval_id,
+            "status": "reviewed",
+            "detail": (
+                f"evidence review completed ({hold_reason}); "
+                "no actuator command created"
+            ),
+            "commands": [],
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        self._write(result)
+        print(f"[Actuator] {execution_id} event={event_id or '-'} status=reviewed")
         return result
 
     def status(self) -> dict:

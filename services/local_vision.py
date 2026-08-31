@@ -176,9 +176,11 @@ class LocalVisionWorker:
         self._thread = threading.Thread(target=self._run, name="local-vision", daemon=True)
         self._thread.start()
 
-    def stop(self):
+    def stop(self, timeout: float = 5.0):
         self._stop.set()
         self._active.set()
+        if self._thread is not None and self._thread.is_alive():
+            self._thread.join(timeout=max(0.1, float(timeout)))
 
     def activate(self) -> tuple[bool, str]:
         with self._lock:
@@ -219,7 +221,7 @@ class LocalVisionWorker:
         if self.device == "auto":
             self.device = "0" if torch and torch.cuda.is_available() else "cpu"
     def _warmup(self):
-        """Allocate the inference path before the operator starts the live demo."""
+        """Allocate the inference path before the live stream is armed."""
         sample = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
         self._model.predict(
             sample,
@@ -286,6 +288,10 @@ class LocalVisionWorker:
                     "source": "local_yolo",
                     "cameraId": self.camera_id,
                     "frameId": frame_id,
+                    "frameSessionId": (
+                        self.camera_worker.evidence_session_id()
+                        if hasattr(self.camera_worker, "evidence_session_id") else ""
+                    ),
                     "model": os.path.basename(self.model_path),
                     "profile": self.profile,
                 }, jpeg)

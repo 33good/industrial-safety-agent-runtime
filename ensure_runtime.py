@@ -1,14 +1,16 @@
-"""Start local competition dependencies only when they are not already running."""
+"""Ensure only the model service required by the personal local runtime."""
+from __future__ import annotations
+
 import json
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
 import time
 import urllib.request
-from pathlib import Path
 
-from sync_cpolar_url import discover_url
+from config import Settings
 
 
 ROOT = Path(__file__).resolve().parent
@@ -16,9 +18,9 @@ RUNTIME = ROOT / "runtime"
 LOGS = ROOT / "logs"
 
 
-def ollama_ready() -> bool:
+def ollama_ready(url: str) -> bool:
     try:
-        with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=2) as response:
+        with urllib.request.urlopen(f"{url.rstrip('/')}/api/tags", timeout=2) as response:
             json.loads(response.read().decode("utf-8"))
         return True
     except Exception:
@@ -35,33 +37,21 @@ def detached_flags() -> int:
     )
 
 
-def start_detached(command: list[str], log_name: str, pid_name: str) -> int:
+def start_detached(command: list[str]) -> int:
     LOGS.mkdir(parents=True, exist_ok=True)
     RUNTIME.mkdir(parents=True, exist_ok=True)
-    log = open(LOGS / log_name, "ab", buffering=0)
-    process = subprocess.Popen(
-        command,
-        cwd=ROOT,
-        stdin=subprocess.DEVNULL,
-        stdout=log,
-        stderr=subprocess.STDOUT,
-        creationflags=detached_flags(),
-        close_fds=True,
-    )
-    (RUNTIME / pid_name).write_text(str(process.pid), encoding="ascii")
+    with (LOGS / "ollama.log").open("ab", buffering=0) as log:
+        process = subprocess.Popen(
+            command,
+            cwd=ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            creationflags=detached_flags(),
+            close_fds=True,
+        )
+    (RUNTIME / "ollama.pid").write_text(str(process.pid), encoding="ascii")
     return process.pid
-
-
-def wait_until(check, seconds: int, label: str) -> None:
-    deadline = time.monotonic() + seconds
-    while time.monotonic() < deadline:
-        try:
-            if check():
-                return
-        except Exception:
-            pass
-        time.sleep(1)
-    raise RuntimeError(f"{label} did not become ready within {seconds}s")
 
 
 def find_ollama() -> str:
@@ -75,45 +65,32 @@ def find_ollama() -> str:
     raise RuntimeError("ollama executable not found")
 
 
-def find_cpolar() -> str:
-    candidates = [
-        os.environ.get("CPOLAR_EXE", ""),
-        shutil.which("cpolar") or "",
-    ]
-    for candidate in candidates:
-        if candidate and Path(candidate).is_file():
-            return candidate
-    raise RuntimeError("cpolar executable not found; set CPOLAR_EXE in .env")
+def wait_until_ready(url: str, seconds: int = 30) -> None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if ollama_ready(url):
+            return
+        time.sleep(0.5)
+    raise RuntimeError(f"Ollama did not become ready within {seconds}s")
 
 
 def main() -> int:
+    settings = Settings.from_env()
+    if settings.llm_mode.lower() != "ollama":
+        print(f"[SKIP] Ollama is not required for LLM_MODE={settings.llm_mode}")
+        return 0
     try:
-        if ollama_ready():
+        if ollama_ready(settings.ollama_url):
             print("[OK  ] Ollama already running")
-        else:
-            pid = start_detached([find_ollama(), "serve"], "ollama.log", "ollama.pid")
-            wait_until(ollama_ready, 30, "Ollama")
-            print(f"[OK  ] Ollama started pid={pid}")
-
-        try:
-            public_url = discover_url()
-            print(f"[OK  ] Optional public tunnel already running {public_url}")
-        except Exception:
-            try:
-                pid = start_detached(
-                    [find_cpolar(), "http", "5000", "-daemon=on", "-dashboard=on"],
-                    "cpolar.log", "cpolar.pid",
-                )
-                wait_until(lambda: bool(discover_url()), 30, "Cpolar")
-                print(f"[OK  ] Optional public tunnel started pid={pid} {discover_url()}")
-            except Exception as tunnel_exc:
-                print(f"[WARN] Public tunnel disabled: {tunnel_exc}")
-                print("       Local Agent, demo replay and WebSocket remain available.")
+            return 0
+        pid = start_detached([find_ollama(), "serve"])
+        wait_until_ready(settings.ollama_url)
+        print(f"[OK  ] Ollama started pid={pid}")
         return 0
     except Exception as exc:
-        print(f"[FAIL] Runtime dependency startup: {exc}")
+        print(f"[FAIL] Ollama dependency startup: {exc}")
         return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

@@ -12,15 +12,10 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-"%PROJECT_PYTHON%" sync_cpolar_url.py --optional
-if errorlevel 1 (
-  pause
-  exit /b 1
-)
 "%PROJECT_PYTHON%" preflight.py --startup
 if errorlevel 10 (
   echo.
-  echo [OK] System is already running. Open http://localhost:8080
+  echo [OK] Personal Agent service is already running.
   pause
   exit /b 0
 )
