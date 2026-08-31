@@ -1,6 +1,6 @@
 {
   "benchmark": "bounded-agent-repair-v1",
-  "generated_at": "2026-08-31T14:32:32.120627+00:00",
+  "generated_at": "2026-08-31T15:17:33.078937+00:00",
   "scope": "One pre-side-effect schema repair; policy violations are contained by guardrails; failed or indeterminate tool side effects require manual takeover.",
   "summary": {
     "cases": 10,

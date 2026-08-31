@@ -1,19 +1,68 @@
 # 可信多模态工业安全 Agent Runtime 与数字孪生系统
 
-这是一个面向工业安全事件处置的**有界单 Agent Runtime**。实时画面先由本地 YOLO 完成目标跟踪、连续帧确认和事件去重，只有稳定的结构化告警与证据截图才进入 Qwen2.5-VL；模型负责候选研判，确定性规则、Guardrail 与 HITL 决定最终权限和执行路径。系统以 SQLite 保存 Run、证据、决策、工具结果和恢复状态，并通过 WebSocket 将处置结果回写到 Three.js 数字孪生界面。
+[![agent-quality-gates](https://github.com/33good/yolo26_agent-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/33good/yolo26_agent-/actions/workflows/ci.yml)
+
+> Event-driven multimodal safety Agent Runtime with bounded reasoning, deterministic guardrails and recoverable execution.
+
+这是一个面向工业安全事件处置的**有界单 Agent Runtime**。实时画面先由本地 YOLO 完成目标跟踪、连续帧确认和事件去重，只有稳定的结构化告警才进入 Agent；存在绑定截图时再由 Qwen2.5-VL 联合研判。模型负责候选判断，确定性规则、Guardrail 与 HITL 决定最终权限和执行路径。系统以 SQLite 保存 Run、证据、决策、工具结果和恢复状态，并通过 WebSocket 将处置结果回写到 Three.js 数字孪生界面。
 
 本项目不把 LLM 当作事实来源，也不允许模型自由选择或拼装高风险工具。核心目标是验证一条可解释、可约束、可恢复的工业事件处置链，而不是构建开放式聊天机器人或无限 ReAct 循环。
 
-## 核心证据
+## 可复核结果
 
-| 证据版本 | 可复核结果 | 适用边界 |
+| 验证对象 | 可复核结果 | 适用边界 |
 | --- | --- | --- |
 | 当前 `safety-v2.8` Runtime | [130/130 项单元与本地集成测试通过](benchmarks/reports/verification_summary.json)；7 类确定性离线 Benchmark 全部通过 | 默认不需要摄像头、GPU、Ollama 或真实外部设备 |
-| `safety-v2.6` 固定基线 | [40 个合成场景](benchmarks/reports/multimodal_latest.md)；候选动作 33/40 合规，最终工具计划 40/40 合法 | 单轮本地 Qwen 回放；不是现场检测准确率 |
-| `safety-v2.6` 证据契约 | [决策 Trace 40/40 完整](benchmarks/reports/multimodal_latest.md)；无 SOP 证据用例 6/6 正确拒答 | 是报告定义的决策阶段契约，不是生产全链路 SLA |
-| `safety-v2.7` 冲突探针 | [冲突检出 9/24；正常对照误报 0/24](benchmarks/reports/multimodal_v27_conflict_validation.md) | 16 个合成场景各重复 3 次；保留负面结果，不包装为提升 |
+| `safety-v2.6` 固定基线 | [40 个合成场景](benchmarks/reports/multimodal_latest.md)；系统级严格通过 34/40，候选动作 33/40 合规，最终工具计划 40/40 合法 | 单轮本地 Qwen 回放；视觉依赖用例 0/6；不是现场检测准确率 |
+| Trace 契约 | [15/15 个完整链路与篡改反例通过](benchmarks/reports/trace_integrity.md)；v2.6 决策 Trace 40/40 完整 | 离线跨表一致性契约，不是分布式追踪 SLA |
+| SOP 检索与拒答 | [8/8 个检索用例通过](benchmarks/reports/sop_retrieval.md)，其中无证据样例 2/2 正确拒答 | 当前小型版本化规程目录，不等同于企业知识库 |
 
-当前代码为 `safety-v2.8-bounded-temporal-evidence`，新增的是有界相邻帧补证机制，而不是新的模型准确率结论。现有单帧合成数据尚不能证明补帧能改善真实 Qwen 判断；完整实验结果、失败 Case 和适用边界见 [Agent Benchmark](#agent-benchmark)。
+当前代码为 `safety-v2.8-bounded-temporal-evidence`，新增的是有界相邻帧补证机制，而不是新的模型准确率结论。现有单帧合成数据尚不能证明补帧能改善真实 Qwen 判断；v2.7 的**系统层**冲突检出为 9/24、正常对照误报为 0/24，但 Qwen 层正常对照误报为 3/24。负面结果仍完整保留在 [Agent Benchmark](#agent-benchmark)，不使用 Guardrail 后指标掩盖模型能力边界。
+
+## 系统架构
+
+```mermaid
+flowchart LR
+    A["RTSP 视频流"] --> B["YOLO 跟踪<br/>连续帧确认与去重"]
+    X["外部结构化告警"] --> C["稳定安全事件"]
+    B --> C
+
+    subgraph R["SQLite 持久化 Runtime · 状态机 / Lease / Fencing / Trace"]
+        direction LR
+        D["ContextBuilder<br/>作用域记忆 + SOP RAG"] --> E["Qwen2.5-VL<br/>候选研判"]
+        E --> F["EvidenceConsistency<br/>+ Bounded Evidence Policy"]
+        F -.->|至多一次只读补证| N["相邻帧"]
+        N -.-> E
+        F --> G["规则风险下限<br/>Guardrail"]
+        G --> H{"确定性执行策略"}
+        H --> I["HITL 审批"]
+        H --> J["ToolExecutor"]
+        H --> K["人工接管"]
+        I --> J
+    end
+
+    C --> D
+    J --> M["WebSocket<br/>Three.js 数字孪生"]
+    K --> M
+```
+
+视觉帧是允许丢弃的高频数据，稳定事件才是 Agent Runtime 的业务输入；因此同一目标持续出现在画面中不会反复触发模型、通知或审批。
+
+## 核心能力
+
+- **事件语义稳定**：本地 YOLO 负责目标关联、连续帧确认和冷却去重，Agent 只消费带来源与证据身份的稳定事件。
+- **模型权限受控**：Qwen2.5-VL 只生成候选研判；结构化校验、风险不可降级、SOP 引用绑定、工具白名单和 HITL 由确定性代码执行。
+- **上下文可追溯**：ContextBuilder 在固定预算内选择规则证据、作用域事件记忆和版本化 SOP，记录选入、丢弃、引用及输入摘要。
+- **执行可恢复**：入口幂等、持久化状态机、Lease/Heartbeat/Fencing Token、成功步骤复用和人工接管共同约束失败恢复。
+
+## 一键离线验证
+
+```powershell
+python -m pip install -r requirements-ci.txt
+python -B verify.py
+```
+
+默认门禁会运行 Policy、故障恢复、Context、受控修复、Runtime 指标、Trace、SOP 检索以及 130 项单元与本地集成测试；它会使用本地回环端口和临时 SQLite 子进程，但不会调用 Qwen、GPU、摄像头、Webhook 或工业设备。只有显式添加 `--live` 才会运行本地多模态模型评测。
 
 ## 运行边界
 
@@ -23,23 +72,6 @@
 - SOP RAG 使用当前仓库内的小型版本化规程目录，具备引用绑定与无证据拒答，但不等同于企业级知识库。
 
 第三方前端依赖与三维资产的作者、来源和许可证见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。本仓库当前未声明项目代码的开源许可证，第三方组件仍分别受其原许可证约束。
-
-## 系统架构
-
-```text
-RTSP 摄像头
-  -> CameraStreamWorker：单次拉流，提供 MJPEG 和最新 BGR 帧
-  -> LocalVisionWorker：本地 YOLO 推理、IoU 目标 ID、连续帧确认
-  -> PerceptionAgent：PPE、区域入侵、人车距离、复合风险
-  -> ContextBuilder：按来源、可信度和优先级装配有预算的模型上下文
-  -> SafetyAgent：Qwen2.5-VL + 时空记忆 + SOP RAG + 最多一次结构修复
-  -> EvidenceConsistency：分离图像事实和检测事实，冲突时停止自治处置
-  -> DispatchAgent：规则与 LLM 建议融合，生成受约束处置路径
-  -> HumanLoop / Database / Notifier / Reporter / Actuator
-  -> WebSocket、SQLite、3D 数字孪生前端
-```
-
-视觉帧是高频数据，允许在推理压力下丢弃旧帧；只有经过跟踪、连续帧确认和冷却去重的安全事件才会触发 LLM、通知与审批。因此，模型不会因为同一人员持续出现在画面中而反复调用 Agent。
 
 ## 目录职责
 

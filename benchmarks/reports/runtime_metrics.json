@@ -1,6 +1,6 @@
 {
   "benchmark": "industrial-agent-runtime-observability-v1",
-  "generated_at": "2026-08-31T14:32:33.851743+00:00",
+  "generated_at": "2026-08-31T15:17:34.724426+00:00",
   "scope": "Measures concurrent SQLite control-plane writes, ingress uniqueness and durable metrics aggregation. It does not measure Qwen, detector or network-tool throughput.",
   "configuration": {
     "unique_runs": 32,
@@ -12,37 +12,37 @@
     "passed": 6,
     "failed": 0,
     "pass_rate_pct": 100.0,
-    "observed_operations_per_second": 38.09
+    "observed_operations_per_second": 39.74
   },
   "load_observations": {
-    "unique_wall_ms": 1242.267,
-    "duplicate_wall_ms": 122.927,
+    "unique_wall_ms": 1181.167,
+    "duplicate_wall_ms": 127.417,
     "unique_operation_latency_ms": {
       "count": 32,
-      "min": 27.933,
-      "mean": 268.044,
-      "p50": 35.307,
-      "p95": 1107.776,
-      "max": 1236.557
+      "min": 28.11,
+      "mean": 130.783,
+      "p50": 32.202,
+      "p95": 337.673,
+      "max": 1176.141
     },
     "duplicate_operation_latency_ms": {
       "count": 20,
-      "min": 0.297,
-      "mean": 23.106,
-      "p50": 0.511,
-      "p95": 103.08,
-      "max": 116.691
+      "min": 0.265,
+      "mean": 11.176,
+      "p50": 0.452,
+      "p95": 46.106,
+      "max": 77.284
     }
   },
   "metrics_snapshot": {
     "schema_version": "agent-runtime-metrics-v1",
-    "generated_at": "2026-08-31T14:32:33.851275+00:00",
+    "generated_at": "2026-08-31T15:17:34.723896+00:00",
     "scope": {
       "source": "durable_sqlite_projection",
       "max_runs": 500,
       "run_count": 33,
-      "oldest_created_at": "2026-08-31T22:32:32.277143",
-      "newest_created_at": "2026-08-31T22:32:33.519311",
+      "oldest_created_at": "2026-08-31T23:17:33.221683",
+      "newest_created_at": "2026-08-31T23:17:34.402391",
       "notes": "Run and tool metrics cover a bounded recent-run sample; capacity counters cover the current process lifetime. This is not a distributed SLA view."
     },
     "runs": {
@@ -102,11 +102,11 @@
           "retry_attempts": 2,
           "latency_ms": {
             "count": 8,
-            "min": 14.056,
-            "mean": 15.283,
-            "p50": 14.957,
-            "p95": 16.771,
-            "max": 17.274
+            "min": 13.983,
+            "mean": 14.217,
+            "p50": 14.027,
+            "p95": 14.822,
+            "max": 14.86
           }
         }
       }
@@ -114,35 +114,35 @@
     "latency_ms": {
       "end_to_end": {
         "count": 32,
-        "min": 20.46,
-        "mean": 258.054,
-        "p50": 25.706,
-        "p95": 1099.945,
-        "max": 1228.381
+        "min": 21.216,
+        "mean": 118.673,
+        "p50": 24.002,
+        "p95": 329.119,
+        "max": 1168.976
       },
       "ingest_to_decision": {
         "count": 32,
-        "min": 6.062,
-        "mean": 210.596,
-        "p50": 7.761,
-        "p95": 997.365,
-        "max": 1212.074
+        "min": 6.468,
+        "mean": 103.024,
+        "p50": 7.315,
+        "p95": 313.194,
+        "max": 1155.718
       },
       "decision_to_execution": {
         "count": 32,
-        "min": 6.41,
-        "mean": 10.677,
-        "p50": 7.9,
-        "p95": 25.331,
-        "max": 54.691
+        "min": 6.228,
+        "mean": 7.914,
+        "p50": 7.408,
+        "p95": 10.797,
+        "max": 13.824
       },
       "execution_to_outcome": {
         "count": 32,
-        "min": 6.067,
-        "mean": 36.781,
-        "p50": 7.904,
-        "p95": 214.147,
-        "max": 491.613
+        "min": 5.961,
+        "mean": 7.736,
+        "p50": 7.683,
+        "p95": 9.134,
+        "max": 11.409
       },
       "approval_wait": {
         "count": 0,
@@ -162,11 +162,11 @@
       },
       "tool_execution": {
         "count": 8,
-        "min": 14.056,
-        "mean": 15.283,
-        "p50": 14.957,
-        "p95": 16.771,
-        "max": 17.274
+        "min": 13.983,
+        "mean": 14.217,
+        "p50": 14.027,
+        "p95": 14.822,
+        "max": 14.86
       }
     },
     "capacity": {
@@ -195,12 +195,12 @@
     {
       "case_id": "tool_retry_metrics_match_durable_rows",
       "passed": true,
-      "detail": "{'execution_count': 8, 'status_counts': {'failed': 2, 'succeeded': 6}, 'success_rate_pct': 75.0, 'total_attempts': 10, 'retry_attempts': 2, 'retried_execution_count': 2, 'by_action': {'database.store': {'execution_count': 8, 'status_counts': {'failed': 2, 'succeeded': 6}, 'success_rate_pct': 75.0, 'retry_attempts': 2, 'latency_ms': {'count': 8, 'min': 14.056, 'mean': 15.283, 'p50': 14.957, 'p95': 16.771, 'max': 17.274}}}}"
+      "detail": "{'execution_count': 8, 'status_counts': {'failed': 2, 'succeeded': 6}, 'success_rate_pct': 75.0, 'total_attempts': 10, 'retry_attempts': 2, 'retried_execution_count': 2, 'by_action': {'database.store': {'execution_count': 8, 'status_counts': {'failed': 2, 'succeeded': 6}, 'success_rate_pct': 75.0, 'retry_attempts': 2, 'latency_ms': {'count': 8, 'min': 13.983, 'mean': 14.217, 'p50': 14.027, 'p95': 14.822, 'max': 14.86}}}}"
     },
     {
       "case_id": "stage_percentiles_are_well_formed",
       "passed": true,
-      "detail": "end_to_end={'count': 32, 'min': 20.46, 'mean': 258.054, 'p50': 25.706, 'p95': 1099.945, 'max': 1228.381}"
+      "detail": "end_to_end={'count': 32, 'min': 21.216, 'mean': 118.673, 'p50': 24.002, 'p95': 329.119, 'max': 1168.976}"
     },
     {
       "case_id": "capacity_scope_is_explicit",

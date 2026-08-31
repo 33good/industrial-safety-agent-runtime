@@ -2,7 +2,7 @@
   "benchmark": "industrial-agent-policy-v1",
   "scope": "post-perception policy, guardrails, and deterministic fallback",
   "dataset": "benchmarks\\datasets\\agent_policy_cases.jsonl",
-  "generated_at": "2026-08-31T14:32:28.436925+00:00",
+  "generated_at": "2026-08-31T15:17:29.909548+00:00",
   "summary": {
     "cases": 12,
     "passed": 12,
@@ -16,9 +16,9 @@
     "fallback_success_rate_pct": 100.0,
     "high_risk_approval_policy_pct": 100.0,
     "policy_latency_ms": {
-      "mean": 0.058,
-      "p50": 0.024,
-      "p95": 0.366
+      "mean": 0.043,
+      "p50": 0.025,
+      "p95": 0.2
     }
   },
   "results": [
@@ -35,7 +35,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.366,
+      "latency_ms": 0.2,
       "actual": {
         "structured_valid": true,
         "rule_level": "B",
@@ -64,7 +64,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.085,
+      "latency_ms": 0.056,
       "actual": {
         "structured_valid": true,
         "rule_level": "A",
@@ -93,7 +93,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.034,
+      "latency_ms": 0.031,
       "actual": {
         "structured_valid": true,
         "rule_level": "C",
@@ -149,7 +149,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.024,
+      "latency_ms": 0.025,
       "actual": {
         "structured_valid": true,
         "rule_level": "B",
@@ -207,7 +207,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.024,
+      "latency_ms": 0.021,
       "actual": {
         "structured_valid": false,
         "rule_level": "B",
@@ -236,7 +236,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.02,
+      "latency_ms": 0.021,
       "actual": {
         "structured_valid": false,
         "rule_level": "C",
@@ -263,7 +263,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.019,
+      "latency_ms": 0.02,
       "actual": {
         "structured_valid": false,
         "rule_level": "B",
@@ -292,7 +292,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.029,
+      "latency_ms": 0.036,
       "actual": {
         "structured_valid": true,
         "rule_level": "B",
@@ -356,7 +356,7 @@
         "fallback_correct": true,
         "approval_policy_correct": true
       },
-      "latency_ms": 0.022,
+      "latency_ms": 0.023,
       "actual": {
         "structured_valid": true,
         "rule_level": "B",

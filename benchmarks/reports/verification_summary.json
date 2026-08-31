@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-31T14:33:00.113105+00:00",
+  "generated_at": "2026-08-31T15:18:01.186728+00:00",
   "python": "3.13.5 | packaged by Anaconda, Inc. | (main, Jun 12 2025, 16:37:03) [MSC v.1929 64 bit (AMD64)]",
   "platform": "win32",
   "live_model_included": false,
@@ -10,56 +10,56 @@
       "name": "agent_policy",
       "command": "python -B -m benchmarks.run_agent_benchmark",
       "exit_code": 0,
-      "duration_seconds": 0.142,
+      "duration_seconds": 0.128,
       "passed": true
     },
     {
       "name": "runtime_faults",
       "command": "python -B -m benchmarks.run_runtime_faults",
       "exit_code": 0,
-      "duration_seconds": 3.436,
+      "duration_seconds": 2.97,
       "passed": true
     },
     {
       "name": "context_engineering",
       "command": "python -B -m benchmarks.run_context_benchmark",
       "exit_code": 0,
-      "duration_seconds": 0.085,
+      "duration_seconds": 0.064,
       "passed": true
     },
     {
       "name": "bounded_repair",
       "command": "python -B -m benchmarks.run_repair_benchmark",
       "exit_code": 0,
-      "duration_seconds": 0.166,
+      "duration_seconds": 0.139,
       "passed": true
     },
     {
       "name": "runtime_observability",
       "command": "python -B -m benchmarks.run_runtime_metrics",
       "exit_code": 0,
-      "duration_seconds": 1.724,
+      "duration_seconds": 1.641,
       "passed": true
     },
     {
       "name": "trace_integrity",
       "command": "python -B -m benchmarks.run_trace_benchmark",
       "exit_code": 0,
-      "duration_seconds": 0.233,
+      "duration_seconds": 0.235,
       "passed": true
     },
     {
       "name": "sop_retrieval",
       "command": "python -B -m benchmarks.run_sop_benchmark",
       "exit_code": 0,
-      "duration_seconds": 0.054,
+      "duration_seconds": 0.048,
       "passed": true
     },
     {
       "name": "unit_and_integration",
       "command": "python -B -m unittest discover -s tests -v",
       "exit_code": 0,
-      "duration_seconds": 23.895,
+      "duration_seconds": 24.089,
       "passed": true
     }
   ]
