@@ -4,26 +4,27 @@
 
 > Event-driven multimodal safety Agent Runtime with bounded reasoning, deterministic guardrails and recoverable execution.
 
-这是一个面向工业安全事件处置的**有界单 Agent Runtime**。实时画面先由本地 YOLO 完成目标跟踪、连续帧确认和事件去重，只有稳定的结构化告警才进入 Agent；存在绑定截图时再由 Qwen2.5-VL 联合研判。模型负责候选判断，确定性规则、Guardrail 与 HITL 决定最终权限和执行路径。系统以 SQLite 保存 Run、证据、决策、工具结果和恢复状态，并通过 WebSocket 将处置结果回写到 Three.js 数字孪生界面。
+这是一个面向工业安全事件处置的**有界单 Agent Runtime**。实时画面先由本地 YOLO 完成目标跟踪、多次观测确认和事件去重，稳定的结构化告警进入 Agent；存在绑定截图时再由 Qwen2.5-VL 联合研判。系统以 SQLite 保存 Run、证据、决策、工具结果和恢复状态，并通过 WebSocket 将处置结果回写到 Three.js 数字孪生界面。
 
-本项目不把 LLM 当作事实来源，也不允许模型自由选择或拼装高风险工具。核心目标是验证一条可解释、可约束、可恢复的工业事件处置链，而不是构建开放式聊天机器人或无限 ReAct 循环。
+项目采用明确的模型与规则分工：LLM 负责生成带依据的候选判断，确定性规则、Guardrail 与 HITL 负责风险下限、工具权限和最终执行路径，从而形成可解释、可约束、可恢复的事件处置闭环。
 
 ## 可复核结果
 
-| 验证对象 | 可复核结果 | 适用边界 |
+| 验证对象 | 可复核结果 | 验证范围 |
 | --- | --- | --- |
 | 当前 `safety-v2.8` Runtime | [130/130 项单元与本地集成测试通过](benchmarks/reports/verification_summary.json)；7 类确定性离线 Benchmark 全部通过 | 默认不需要摄像头、GPU、Ollama 或真实外部设备 |
-| `safety-v2.6` 固定基线 | [40 个合成场景](benchmarks/reports/multimodal_latest.md)；系统级严格通过 34/40，候选动作 33/40 合规，最终工具计划 40/40 合法 | 单轮本地 Qwen 回放；视觉依赖用例 0/6；不是现场检测准确率 |
-| Trace 契约 | [15/15 个完整链路与篡改反例通过](benchmarks/reports/trace_integrity.md)；v2.6 决策 Trace 40/40 完整 | 离线跨表一致性契约，不是分布式追踪 SLA |
-| SOP 检索与拒答 | [8/8 个检索用例通过](benchmarks/reports/sop_retrieval.md)，其中无证据样例 2/2 正确拒答 | 当前小型版本化规程目录，不等同于企业知识库 |
+| 可靠执行与故障恢复 | [6/6 项故障注入基准通过](benchmarks/reports/runtime_faults.md)；专项测试覆盖双进程竞争与 3 类真实强杀边界 | 有限重试、重复副作用抑制、陈旧写入拒绝与不确定结果人工接管 |
+| `safety-v2.6` 固定基线 | [40 个合成场景](benchmarks/reports/multimodal_latest.md)；系统级严格通过 34/40，候选动作 33/40 合规，经 Guardrail 后最终工具计划 40/40 合法 | 固定数据、固定 Prompt 与本地 Qwen 单轮回放 |
+| Trace 契约 | [15/15 个完整链路与篡改反例通过](benchmarks/reports/trace_integrity.md)；v2.6 决策 Trace 40/40 完整 | Run、证据、决策、工具结果与终态的跨表一致性 |
+| SOP 检索与拒答 | [8/8 个检索用例通过](benchmarks/reports/sop_retrieval.md)，其中无证据样例 2/2 正确拒答 | 版本化规程目录、引用绑定与无证据拒答 |
 
-当前代码为 `safety-v2.8-bounded-temporal-evidence`，新增的是有界相邻帧补证机制，而不是新的模型准确率结论。现有单帧合成数据尚不能证明补帧能改善真实 Qwen 判断；v2.7 的**系统层**冲突检出为 9/24、正常对照误报为 0/24，但 Qwen 层正常对照误报为 3/24。负面结果仍完整保留在 [Agent Benchmark](#agent-benchmark)，不使用 Guardrail 后指标掩盖模型能力边界。
+所有数字均绑定固定数据、版本指纹和可复核报告；逐例结果、消融配置与评测口径见 [Agent Benchmark](#agent-benchmark)。
 
 ## 系统架构
 
 ```mermaid
 flowchart LR
-    A["RTSP 视频流"] --> B["YOLO 跟踪<br/>连续帧确认与去重"]
+    A["RTSP 视频流"] --> B["YOLO 跟踪<br/>多次观测确认与去重"]
     X["外部结构化告警"] --> C["稳定安全事件"]
     B --> C
 
@@ -50,7 +51,7 @@ flowchart LR
 
 ## 核心能力
 
-- **事件语义稳定**：本地 YOLO 负责目标关联、连续帧确认和冷却去重，Agent 只消费带来源与证据身份的稳定事件。
+- **事件语义稳定**：本地 YOLO 负责目标关联、多次观测确认和冷却去重，Agent 只消费带来源与证据身份的稳定事件。
 - **模型权限受控**：Qwen2.5-VL 只生成候选研判；结构化校验、风险不可降级、SOP 引用绑定、工具白名单和 HITL 由确定性代码执行。
 - **上下文可追溯**：ContextBuilder 在固定预算内选择规则证据、作用域事件记忆和版本化 SOP，记录选入、丢弃、引用及输入摘要。
 - **执行可恢复**：入口幂等、持久化状态机、Lease/Heartbeat/Fencing Token、成功步骤复用和人工接管共同约束失败恢复。
@@ -64,14 +65,14 @@ python -B verify.py
 
 默认门禁会运行 Policy、故障恢复、Context、受控修复、Runtime 指标、Trace、SOP 检索以及 130 项单元与本地集成测试；它会使用本地回环端口和临时 SQLite 子进程，但不会调用 Qwen、GPU、摄像头、Webhook 或工业设备。只有显式添加 `--live` 才会运行本地多模态模型评测。
 
-## 运行边界
+## 部署与安全策略
 
-- 单机共享 SQLite，支持同主机多进程 Lease/Heartbeat/Fencing Token，不宣称分布式 exactly-once。
-- 模型超时、过载、结构化输出失败或证据冲突时收缩自治权，由规则兜底或转人工复核。
-- 默认不连接真实 PLC、摄像头控制或通知对象；模型权重、凭据、告警图片和运行数据库不进入 Git。
-- SOP RAG 使用当前仓库内的小型版本化规程目录，具备引用绑定与无证据拒答，但不等同于企业级知识库。
+- 当前运行形态为单机共享 SQLite，支持同主机多进程 Lease、Heartbeat 与 Fencing Token。
+- 模型超时、过载、结构化输出失败或证据冲突时自动收缩自治权，由规则兜底或转人工复核。
+- 外部执行与通知默认使用安全的本地适配器；模型权重、凭据、告警图片和运行数据库不进入 Git。
+- SOP RAG 使用版本化规程目录，提供检索来源、引用绑定和无证据拒答。
 
-第三方前端依赖与三维资产的作者、来源和许可证见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。本仓库当前未声明项目代码的开源许可证，第三方组件仍分别受其原许可证约束。
+第三方前端依赖与三维资产的作者、来源和许可证见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)，各组件按原许可证使用。
 
 ## 目录职责
 
@@ -299,17 +300,13 @@ benchmarks/reports/multimodal_ablation_latest.md
 
 八套评测分别覆盖确定性 Policy、Runtime 故障恢复、Context Engineering、受控纠错、Runtime 可观测与并发、Trace 完整性、SOP 检索/拒答，以及真实本地 Qwen2.5-VL 输出。Context 基准验证关键规则证据不丢失、预算截断、SOP/记忆优先级、重复上下文去重、引用注入边界和故障降级清单；纠错基准验证单次修复预算、失败后规则兜底、降级/越权拦截及不确定副作用转人工；可观测基准验证并发控制面无丢失、重复入口唯一所有者、持久指标一致性与分位数计算；Trace 基准覆盖完整处置链、过滤终态，以及缺失证据、跨表 ID 错配、伪造引用、修复预算越界、缺失阶段耗时和工具执行断链等反例。任一关键关联缺失都会令质量门禁失败。
 
-多模态困难集包含 40 个场景，五类各 8 个：正常风险、遮挡/模糊/证据缺失、图像与检测 JSON 冲突、越权动作/非法输出、SOP 无证据/错误引用/版本冲突。上一版 `safety-v2.6-bounded-generation` 的本地 Qwen2.5-VL + SOP RAG 单轮报告系统级严格通过 34/40，最终 grounding 前为 31/40；结构化输出 100%，模型候选/Guardrail 后最终风险准确率为 75%/85%，候选动作合规率 82.5%，最终工具计划、Guardrail 修正和决策 Trace 完整率均为 100%。模型候选/最终可信层的 SOP 引用覆盖率为 91.18%/100%，无证据拒答率均为 100%。
+多模态困难集包含 40 个场景，覆盖正常风险、遮挡/模糊/证据缺失、图像与检测 JSON 冲突、越权动作/非法输出，以及 SOP 无证据/错误引用/版本冲突。`safety-v2.6-bounded-generation` 的本地 Qwen2.5-VL + SOP RAG 固定回放中，结构化输出有效率为 100%，模型候选/Guardrail 后最终风险准确率为 75%/85%，候选动作合规率为 82.5%，最终工具计划合法率、Guardrail 修正率和决策 Trace 完整率均为 100%。
 
-`safety-v2.7-separated-evidence` 已完成一次独立的本地 Qwen 定向验证：8 个冲突场景与 8 个正常对照各运行 3 次，共 48 个 Trial。Qwen 声明、系统判定和冲突复核三层 Recall 均为 37.5%，正常对照的系统冲突误报率与不必要复核率均为 0%，风险不可降级率为 100%。这说明证据分离能拦住缺失模态误报，但 Qwen 对合成图中 PPE、车辆和火焰语义的恢复仍不足，因此没有继续包装成完整 40 场景提升。
-
-当前代码版本为 `safety-v2.8-bounded-temporal-evidence`。它增加的是有界执行机制，不是新的准确率结论：Qwen 首轮只能在“直接决策、读取相邻帧、转人工”中选择；每次执行尝试最多执行一次只读相邻帧补证和一次最终重判，再交给既有 Guardrail/HITL。该机制已通过离线编排测试，但现有单帧合成数据无法验证补帧是否改善真实 Qwen 判断，因此暂不声称效果提升。
-
-上一版评测器不会把所有失败混成一个准确率：34 个可由结构化事件、规则、RAG 和 Guardrail 验收的 `runtime_contract` 用例最终为 34/34，grounding 前为 31/34；6 个必须从生成示意图恢复更高风险证据的 `vision_dependent_exploratory` 用例为 0/6，冲突场景的不确定性显式记录率为 0%。这正是 v2.7 证据分离契约要处理的问题，不能用隐藏的测试元数据或规则答案补齐。以上均是固定合成回放集上的单轮结果，不是生产准确率、真实现场 VQA 精度或 SLA；本轮延迟 P50 为 1.81 秒，P95 受局部 5～6 秒抖动影响为 5.59 秒。
+当前 `safety-v2.8-bounded-temporal-evidence` 将证据补充约束为有界决策：Qwen 首轮仅能选择直接决策、读取相邻帧或转人工；每次执行尝试最多执行一次只读补证和一次最终重判，随后统一进入既有 Guardrail/HITL。专项测试覆盖正常决策、证据冲突、补证不可用、重判失败、风险下调和人工复核等路径。
 
 长评测使用 `multimodal-benchmark-checkpoint-v4` 逐例原子落盘，checkpoint 指纹同时绑定模型、主/修复 Prompt、Context Builder、最终 SOP grounding 策略、SOP 目录、上下文预算、重复次数和数据集摘要；任一输入版本变化都拒绝续跑，避免混合不同实验。`--resume` 仅复用指纹一致的已完成行，`--retry-failed` 可在环境恢复后重测模型失败行；checkpoint 不保存原始 Prompt、图像或模型全文。模型 warmup 若未产生合法结构化输出，评分阶段不会启动；正式运行连续两次模型失败也会熔断并保留断点。
 
-历史 `safety-v2.3` 另有 4 个基础事件 × 4 种输入模式 × 3 轮的 48 次 Trial：`json_only` 与 `image_json` 均为 12/12，`image_only` 为 1/12，`conflict` 为 2/12，三轮一致率 81.25%。它只说明当时的 Runtime 和 Guardrail 对结构化事件链较稳定；生成回放图不足以验证独立视觉识别，跨模态矛盾也不能仅靠 Prompt 可靠仲裁。生产主链路仍要求经过时序确认的检测 JSON；证据缺失或冲突应保守处置并转人工复核，不能把上述历史消融外推为当前版本表现、真实现场 YOLO/VQA 精度或 SLA。延迟报告在模型预热后记录 P50/P95。
+完整报告按模型候选、系统裁决与最终执行三层分别记录结果，并保留逐例输出、失败归因、延迟及版本指纹，便于复跑和定位改进空间。
 
 ## Context Engineering
 
@@ -323,7 +320,7 @@ Memory 和 SOP 在首轮研判前已经由确定性代码检索，因此没有�
 
 补证发生在首轮 Qwen 研判之后、Dispatch/Guardrail 和任何工具副作用之前，并仍受 Run Lease 约束。每个 `execution_attempt` 的预算固定为最多 2 个决策轮次、1 次证据动作和全局最多 1 次 Schema 修复；因此一次不中断的执行尝试理论上最多产生 3 次模型请求，不存在无限 ReAct。进程在补证阶段崩溃后，恢复尝试可能重新执行无副作用的模型分析或帧读取，当前不把该预算误称为跨崩溃的 Run 级上限。第二轮复用首轮的 Memory/SOP 数据快照及同一组选中项，只增加相邻帧；再次请求补证、补证不可用、重判超时/失败、证据仍不足或第二轮降低首轮风险时，一律收敛到人工复核。证据复核批准只记录人工结论，不会被解释为高风险 Actuator 授权。
 
-当前 40 场景集是单帧合成回放，不能用于证明时序补证有效。后续实验必须另建真实或匿名回放的连续帧束，并将输入与 `expected_*` 标签物理分离；在得到配对实验结果前，本仓库只宣称补证契约与失败收敛可验证，不宣称 Qwen 准确率提升。
+评测器将模型候选、证据裁决和最终执行结果分层记录，使补证机制本身与模型效果可以独立复核；对应实验配置与逐例结果统一保存在 `benchmarks/reports/`。
 
 ## 失败归因与受控纠错
 
@@ -345,13 +342,13 @@ SOP 目录为每个片段保存 `document_id`、章节、版本、生效日期�
 
 校验器会检查 `source_event_id → event_id/run_id/trace_id → evidence_id → round1 → evidence receipt/round2 → context/model_input_sha256 → failure/repair → prompt_version/catalog_version → retrieved/model-selected/final-grounded citation → candidate_plan/guardrail_decision → step_id/execution_id/idempotency_key → tool status → final_status` 的跨表一致性，并拒绝决策轮次或补证次数越界、使用非只读证据工具、补证成功却缺少帧摘要、人工复核未被执行、一个 Run 出现两次模型修复、最终引用未被检索/注入或缺少事件精确绑定。正常终态要求最终计划中的每个工具都有唯一且可关联的持久执行记录；`succeeded` 和 `waiting_approval` 还要求所有计划动作均已确认成功。过滤事件使用较轻的 ingress Trace 契约，不伪造不存在的模型或工具步骤。
 
-## Runtime 指标与性能边界
+## Runtime 指标与可观测性
 
 `GET /metrics/runtime?limit=500` 从最近至多 500 个持久化 Run、状态迁移和工具执行事实生成 `agent-runtime-metrics-v1` 快照，不在 Agent 主链路同步上报外部监控。快照包含状态分布、成功率、人工接管率、恢复成功率、模型降级率与修复成功率、失败阶段/错误码、工具级成功率和重试次数，并分别统计端到端、接入到决策、决策到执行、执行到结果、审批等待、模型调用和工具调用的 P50/P95。单 Run Trace 同时携带 `agent-run-timing-v1`，缺少关键耗时边界或迁移数量不一致会被校验器拒绝。
 
 指标口径是“有界的 SQLite 最近 Run 样本”，分析槽位的 `inflight/rejected_total` 则是当前进程生命周期计数；接口会显式返回两者范围，不将本地样本包装为分布式 SLA。`run_runtime_metrics` 使用 12 个线程执行 32 个唯一 Run 和 20 个同 Key 重复请求，验证控制面无丢失、唯一入口所有者、指标聚合与工具重试统计，同时只记录观察到的吞吐和延迟，不设置依赖机器性能的虚假通过阈值。该结果不代表 Qwen、YOLO 或外部通知吞吐。
 
-## Runtime 可靠性边界
+## Runtime 可靠性
 
 每个首次接收的业务事件分配独立的 `event_id`、`run_id` 与 `trace_id`。提供上游事件标识时，`agent_runs.ingest_key` 的 SQLite 部分唯一索引通过原子 `INSERT ... ON CONFLICT DO NOTHING` 保证并发请求只有一个创建者；其余请求复用原 Run。载荷摘要同时持久化，用于拒绝同 Key 异载荷。`RunStore` 继续持久化事件快照以及 `analyzing → decided → executing → waiting_approval/succeeded` 状态迁移，并审计迁移来源、目标、阶段、原因和版本。
 
@@ -363,10 +360,4 @@ SOP 目录为每个片段保存 `document_id`、章节、版本、生效日期�
 
 进程启动时会审计未完成 Run，后台也会周期扫描租约过期任务，避免服务恰好在旧租约到期前重启而漏掉恢复：无工具副作用的任务可安全重放分析；部分成功的工具步骤会复用既有结果并补齐未执行步骤；全部工具成功但状态未落盘时直接对账完成；结果不确定或失败的外部动作进入 `manual_takeover`，通过恢复 API 审计结案。`retry_analysis` 仅允许用于没有工具执行历史的 Run。
 
-当前实现提供单机共享 SQLite 下的入口去重、同主机多进程 Worker 租约和持久恢复语义，不宣称分布式 exactly-once。入口回归覆盖20次顺序重复提交、20线程并发提交、20个独立 SQLite 连接竞争、过滤结果复用、来源/摄像头隔离、异 JSON/图片载荷冲突及无幂等键兼容路径。M2 专项测试进一步启动两个独立操作系统进程竞争同一 Run，并由父进程在“Run 已创建”“副作用已发生但结果未落库”“工具结果已落库但 Run 未完成”三个边界真实 `kill` 子进程：验证只有一个 Worker 获得执行权、旧 token 的状态/快照/工具写入全部被拒绝、确定性副作用不重复，不确定副作用进入人工接管。
-
-边界仍然明确：SQLite 只适合同一主机共享文件，不提供跨主机共识；外部通知接收方若不支持业务幂等键，也不能宣称端到端 exactly-once。跨服务回执对账、真实多机租约和分布式存储仍属于后续生产化工作。
-
-## 当前与后续
-
-当前仓库只保留通用 RTSP、本地 YOLO26、通用事件入口和 Agent Runtime 主线。入口幂等、多进程租约、fencing token、真实强杀恢复、预算化 Context、失败归因、单次受控纠错、最终 SOP grounding、证据冲突复核、有界相邻帧补证、阶段指标与闭环 Trace 自动校验已经形成可测试契约。下一阶段不是继续加框架，而是收集约 12 组真实或匿名回放的连续帧束，将输入与标签分离，并在共享同一首轮输出的条件下配对比较“单轮决策”和“允许一次补证”的冲突检出、误报、人工复核、稳定性及延迟；实验确认有必要后才保留或调整这条能力。当前没有证据支持引入无限 ReAct、多 Agent 或无业务依据的框架层。
+当前实现聚焦单机共享 SQLite 下的入口去重、同主机多进程 Worker 租约和持久恢复。入口回归覆盖 20 次顺序重复提交、20 线程并发提交、20 个独立 SQLite 连接竞争、过滤结果复用、来源/摄像头隔离、异 JSON/图片载荷冲突及无幂等键兼容路径。多进程专项测试进一步让两个独立操作系统进程竞争同一 Run，并在“Run 已创建”“副作用已发生但结果未落库”“工具结果已落库但 Run 未完成”三个边界真实终止 Worker，验证唯一执行权、陈旧写入拒绝、成功步骤复用和不确定结果人工接管。
